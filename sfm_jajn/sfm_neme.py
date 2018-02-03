@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# SFM by Jorge Andrés Jaramillo Neme ----> Thesis UAO
+#...............................................................................................
 import os
 import sys
 import cv2
@@ -8,7 +10,6 @@ import glob
 import numpy as np
 from PIL import Image
 from numpy import linalg
-
 #-----------------------------------------------------------------------------------------------
 #Para cargar imagenes en vez de un video...
 #images = sorted(glob.glob('./TestImages/*.jpg'),key=lambda f: int(filter(str.isdigit, f)))
@@ -27,6 +28,15 @@ class sfm_neme:
             mtx, dist, rvecs, tvecs = [X[i] for i in ('mtx','dist','rvecs','tvecs')]
             return mtx,dist,rvecs,tvecs
 
+    def preProcessing(self,inputImage): #Preprocesa y rota frame.
+        outputImage = cv2.cvtColor(inputImage, cv2.COLOR_BGR2GRAY)
+        outputImage = cv2.bilateralFilter(outputImage,-1,30,5);
+        rows,cols = outputImage.shape
+        M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
+        dst = cv2.warpAffine(outputImage,M,(cols,rows))
+        return dst
+
+
     def sfmSolver(self):
         cap = cv2.VideoCapture(self.videoPath)
         while(cap.isOpened()):
@@ -34,10 +44,7 @@ class sfm_neme:
             #print str(ret)
             if (success and (int(round(cap.get(1))) % 10 == 0 or int(round(cap.get(1)))==1)):
                 # Efectua la lectura cada n frames, en este caso 10.
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                rows,cols = gray.shape
-                M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
-                dst = cv2.warpAffine(gray,M,(cols,rows))
+                dst = self.preProcessing(frame)
                 print str(cap.get(1))
                 cv2.imshow('frame',dst)
                 if cv2.waitKey(500) & 0xFF == ord('q'):
@@ -49,6 +56,6 @@ class sfm_neme:
         cv2.destroyAllWindows()
 
 mapeo = sfm_neme('./videoInput/1.mp4','./calibrateCamera/camera_calibration.npz')
-mtx,dist,rvecs,tvecs = mapeo.importarCalibracionCamara()
-print str(dist)
+# mtx,dist,rvecs,tvecs = mapeo.importarCalibracionCamara()
+# print str(dist)
 mapeo.sfmSolver()

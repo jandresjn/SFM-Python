@@ -1,6 +1,11 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import cv2
 import glob
+import math
+from numpy import linalg
 
 # termination criteria
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -14,9 +19,13 @@ objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
 images = glob.glob('*.jpg')
-
+i=1
 for fname in images:
     img = cv2.imread(fname)
+    wPercent = (500/float(img.size[0]))  # Saca el porcentaje que representa el ancho fijado con respecto a la imagen actual
+    # ejemplo, para una imagen de width de 800, queda 500/800, osea que corresponde 500 al 62.5 % de 800....
+    height = int((float(img.size[1]) * float(wPercent)))
+    img= cv2.resize((500, height), Image.BILINEAR)
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
     # Find the chess board corners
@@ -31,9 +40,10 @@ for fname in images:
 
         # Draw and display the corners
         cv2.drawChessboardCorners(img, (9,6), corners,ret)
-        cv2.imshow('img',img)
-        print "sigo vivo"
-        cv2.waitKey(500)
+        #cv2.imshow('img',img)
+        print "imagen correcta #: " + str (i)
+        i+=1
+        #cv2.waitKey(500)
 
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 print str(mtx)
@@ -43,15 +53,22 @@ print "por aca ando"
 img = cv2.imread('2.jpg')
 h,  w = img.shape[:2]
 newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
-# undistort
 dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
 print "ya casi"
-# crop the image
 x,y,w,h = roi
 dst = dst[y:y+h, x:x+w]
-cv2.imwrite('calibresult.png',dst)
-cv2.imshow('Imagen corregida',dst)
-cv2.imshow('Imagen sin corregir',img)
-cv2.waitKey(0)
+cv2.imwrite('calibresult1.png',dst)
+
+img = cv2.imread('sincorregir.jpg')
+h,  w = img.shape[:2]
+newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
+print "ya casi"
+x,y,w,h = roi
+dst = dst[y:y+h, x:x+w]
+cv2.imwrite('calibresult2.png',dst)
+# cv2.imshow('Imagen corregida',dst)
+# cv2.imshow('Imagen sin corregir',img)
+# cv2.waitKey(0)
 print "acabe"
 cv2.destroyAllWindows()

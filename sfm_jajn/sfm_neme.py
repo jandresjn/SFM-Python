@@ -10,6 +10,7 @@ import glob
 import numpy as np
 from PIL import Image
 from numpy import linalg
+from matplotlib import pyplot as plt
 #-----------------------------------------------------------------------------------------------
 #Para cargar imagenes en vez de un video...
 #images = sorted(glob.glob('./TestImages/*.jpg'),key=lambda f: int(filter(str.isdigit, f)))
@@ -44,7 +45,7 @@ class sfm_neme:
         return dst
 
     def filter_matches(self):
-        print 'matches feos :' + str(len(self.matches))
+        print 'matches sin filtrar :' + str(len(self.matches))
         # Se encuentran los mejores matches según el ratio especificado y se agrupan en un array
         filtered_matches = []
         for m in self.matches:
@@ -78,8 +79,17 @@ class sfm_neme:
             kp2.append(next_features[match.queryIdx])  # Guarda los keyponts correspondientes y filtrados de la segunda imagen
         p1 = np.array([k.pt for k in kp1], np.float32)  # Parecido al reshape del tutorial, lo guarde en un vector
         p2 = np.array([k.pt for k in kp2], np.float32)  # Parecido al reshape lo guarda en un vector
-        return p1, p2
+        return p1, p2,matches_subset,base_features,next_features
 
+
+    def CheckCoherentRotation(self,matR):
+        EPS= 1E-7
+        print 'determinante: '+str(np.linalg.det(matR))
+        if(np.fabs(np.linalg.det(matR))-1.0>EPS):
+            print 'Error matriz inválida'
+            return False
+        print 'Matriz válida'
+        return True
 
     def sfmSolver(self):
         self.mtx,self.dist,self.rvecs,self.tvecs=self.importarCalibracionCamara()
@@ -87,31 +97,68 @@ class sfm_neme:
         while(cap.isOpened()):
             success, frame = cap.read()
             #print str(ret)
-            if (success and (int(round(cap.get(1))) % 5 == 0 or int(round(cap.get(1)))==1) and cap.get(1)<=5):# Añado para usar 2 imágenes.
+            if (success and (int(round(cap.get(1))) % 30 == 0 or int(round(cap.get(1)))==1) and cap.get(1)<=30):# Añado para usar 2 imágenes.
                 # Efectua la lectura cada n frames, en este caso 5.
                 frameSiguiente = self.preProcessing(frame)
-                if (cap.get(1) == 1):
+                if (cap.get(1) == 1): # Esto está temporal, mientras se le añade lo de múltiples vistas mas lo de bundle adjustment
                     frameActual = frameSiguiente
-                kp1_filtrado , kp2_filtrado=self.featureMatching(frameActual,frameSiguiente)
+                else:
+                    kp1_filtrado , kp2_filtrado,matches,base_features,next_features=self.featureMatching(frameActual,frameSiguiente)
 
-                E,mask =cv2.findEssentialMat(kp1_filtrado,kp2_filtrado,self.mtx,cv2.RANSAC,0.999,1.0)
-                points, R, t, mask = cv2.recoverPose(E, kp1_filtrado,kp2_filtrado)
-                print 'retval: '
-                print str(E)
-                print 'mask: '
-                print str(R)
+                    E,mask =cv2.findEssentialMat(kp1_filtrado,kp2_filtrado,self.mtx,cv2.RANSAC,0.999,1.0)
+                    points, R, t, mask = cv2.recoverPose(E, kp1_filtrado,kp2_filtrado)
 
-                # print str(cap.get(1))
-                cv2.imshow('frame',frameSiguiente)
-                if cv2.waitKey(500) & 0xFF == ord('q'):
-                    break
+                    P2=np.array([[R[0,0],R[0,1], R[0,2], t[0]],[R[1,0],R[1,1], R[1,2], t[1]],[R[2,0],R[2,1], R[2,2], t[2]]],np.float32)
+
+                    tempEye=np.eye(3)
+                    P1=np.zeros((3,4))
+                    P1[:,:-1]=tempEye
+
+
+                    # kp1_filtrado_h=np.ones((len(kp1_filtrado),3),np.float32)
+                    # kp1_filtrado_h[:,:-1]=kp1_filtrado
+                    kp1_filtrado=np.expand_dims(kp1_filtrado, axis=0)
+                    # print str(kp1_filtrado.shape)
+                    # print str(kp1_filtrado)
+                    normp1=cv2.undistortPoints(kp1_filtrado,self.mtx,self.dist)
+                    # print 'shape_normp1'+ str(normp1.shape)
+                    # normp1_homogeneo=np.ones((len(normp1[0]),3),np.float32)
+                    # print 'shape_norm_homogeneo'+ str(normp1_homogeneo.shape)
+                    # normp1_homogeneo[:,:-1] = normp1
+                    # print 'K: '+ str(self.mtx)
+                    # print 'dist: '+ str(self.dist)
+                    # print 'normp1'
+                    # print str(normp1)
+                    kp2_filtrado=np.expand_dims(kp2_filtrado, axis=0)
+                    normp2=cv2.undistortPoints(kp2_filtrado,self.mtx,self.dist)
+                    # normp2_homogeneo=np.ones((len(normp2[0]),3),np.float32)
+                    # normp2_homogeneo[:,:-1] = normp2
+                    # print 'normp2'
+                    # print str(normp2_homogeneo)
+                    puntos3d=cv2.triangulatePoints(P1, P2,normp1,normp2)
+
+
+                    # draw_params = dict(matchColor = (0,0,255), # draw matches in green color
+                    #    singlePointColor = None,
+                    #    matchesMask = None, # draw only inliers
+                    #    flags = 2)
+
+                    resp=self.CheckCoherentRotation(R)
+                    print str(t)
+                    #imgchimbita = cv2.drawMatches(frameActual,base_features,frameSiguiente,next_features,matches[:10],None,**draw_params)
+                    #plt.imshow(imgchimbita),plt.show()
+                    print str(cap.get(1))
+                    cv2.imshow('frameActual',frameActual)
+                    cv2.imshow('frameSiguiente',frameSiguiente)
+                    if cv2.waitKey(500) & 0xFF == ord('q'):
+                        break
             elif success == False:
                 cv2.waitKey(0)
                 break
         cap.release()
         cv2.destroyAllWindows()
 
-mapeo = sfm_neme('./videoInput/1.mp4','./calibrateCamera/camera_calibration.npz')
+mapeo = sfm_neme('./videoInput/2.mp4','./calibrateCamera/camera_calibration.npz')
 # mtx,dist,rvecs,tvecs = mapeo.importarCalibracionCamara()
 # print str(dist)
 mapeo.sfmSolver()

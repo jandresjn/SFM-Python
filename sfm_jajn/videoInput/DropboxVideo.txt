@@ -1,0 +1,5 @@
+# Se deja el enlace de Dropbox para descargar los videos o imágenes de entrada al SFM.
+# Tener en cuenta el path especificado en el main.py, para seleccionar el paquete de fotos o video adecuadamente.
+
+ENLACE:
+https://www.dropbox.com/sh/7pzckawaojbr4fy/AADMzf_M7PYb3ADzm2uB8VLna?dl=0

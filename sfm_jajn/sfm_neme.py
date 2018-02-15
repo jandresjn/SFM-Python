@@ -2,16 +2,13 @@
 # -*- coding: utf-8 -*-
 # SFM by Jorge Andrés Jaramillo Neme ----> Thesis UAO
 #...............................................................................................
-import os
-import sys
 import cv2
 import math
 import glob
 import numpy as np
-from PIL import Image
-from numpy import linalg
-from matplotlib import pyplot as plt
-#-----------------------------------------------------------------------------------------------
+from VtkPointCloud import VtkPointCloud
+
+#----------------------------------- PENDIENTE DE INLCUIR --------------------------------------
 #Para cargar imagenes en vez de un video...
 #images = sorted(glob.glob('./TestImages/*.jpg'),key=lambda f: int(filter(str.isdigit, f)))
 #print str(images)
@@ -38,7 +35,7 @@ class sfm_neme:
 
     def preProcessing(self,inputImage): #Preprocesa y rota frame.
         outputImage = cv2.cvtColor(inputImage, cv2.COLOR_BGR2GRAY)
-        outputImage = cv2.bilateralFilter(outputImage,-1,30,5);
+        #outputImage = cv2.bilateralFilter(outputImage,-1,30,5);
         rows,cols = outputImage.shape
         M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
         dst = cv2.warpAffine(outputImage,M,(cols,rows))
@@ -81,16 +78,16 @@ class sfm_neme:
         p2 = np.array([k.pt for k in kp2], np.float32)  # Parecido al reshape lo guarda en un vector
         return p1, p2,matches_subset,base_features,next_features
 
-
+# Checa que la triangulación esté bien teniendo en cuenta el determinante de R
     def CheckCoherentRotation(self,matR):
         EPS= 1E-7
-        print 'determinante: '+str(np.linalg.det(matR))
+        #print 'determinante: '+str(np.linalg.det(matR))
         if(np.fabs(np.linalg.det(matR))-1.0>EPS):
             print 'Error matriz inválida'
             return False
         print 'Matriz válida'
         return True
-
+#
     def sfmSolver(self):
         self.mtx,self.dist,self.rvecs,self.tvecs=self.importarCalibracionCamara()
         cap = cv2.VideoCapture(self.videoPath)
@@ -104,17 +101,13 @@ class sfm_neme:
                     frameActual = frameSiguiente
                 else:
                     kp1_filtrado , kp2_filtrado,matches,base_features,next_features=self.featureMatching(frameActual,frameSiguiente)
-
                     E,mask =cv2.findEssentialMat(kp1_filtrado,kp2_filtrado,self.mtx,cv2.RANSAC,0.999,1.0)
                     points, R, t, mask = cv2.recoverPose(E, kp1_filtrado,kp2_filtrado)
-
                     P2=np.array([[R[0,0],R[0,1], R[0,2], t[0]],[R[1,0],R[1,1], R[1,2], t[1]],[R[2,0],R[2,1], R[2,2], t[2]]],np.float32)
-
                     tempEye=np.eye(3)
                     P1=np.zeros((3,4))
                     P1[:,:-1]=tempEye
-
-
+                    resp=self.CheckCoherentRotation(R)
                     # kp1_filtrado_h=np.ones((len(kp1_filtrado),3),np.float32)
                     # kp1_filtrado_h[:,:-1]=kp1_filtrado
                     kp1_filtrado=np.expand_dims(kp1_filtrado, axis=0)
@@ -136,18 +129,26 @@ class sfm_neme:
                     # print 'normp2'
                     # print str(normp2_homogeneo)
                     puntos3d=cv2.triangulatePoints(P1, P2,normp1,normp2)
+                    puntos3d=np.squeeze(puntos3d).transpose()
+                    print 'puntos3d'
+                    print puntos3d
+                    print 'shape puntos 3d : '+ str(puntos3d.shape)
+                    #puntos3d=np.squeeze(puntos3d)
+                    # eucliPoints=cv2.convertPointsFromHomogeneous(puntos3d.transpose())
+                    # eucliPoints=np.squeeze(eucliPoints)
+                    # print 'eucliPoints'
+                    # print eucliPoints
+                    # print 'eucliPoints'
+                    # print eucliPoints[3,:]
+                    # print 'lenght eucli: '+ str(len(eucliPoints))
+                    # print 'shape_euclipoints: '+ str(eucliPoints.shape)
+                    pointCloud = VtkPointCloud()
+                    for k in xrange(len(puntos3d)):
+                        #point = 20*(random.rand(3)-0.5)
+                        point=puntos3d[k,:3]
+                        pointCloud.addPoint(point)
+                    pointCloud.renderPoints(pointCloud)
 
-
-                    # draw_params = dict(matchColor = (0,0,255), # draw matches in green color
-                    #    singlePointColor = None,
-                    #    matchesMask = None, # draw only inliers
-                    #    flags = 2)
-
-                    resp=self.CheckCoherentRotation(R)
-                    print str(t)
-                    #imgchimbita = cv2.drawMatches(frameActual,base_features,frameSiguiente,next_features,matches[:10],None,**draw_params)
-                    #plt.imshow(imgchimbita),plt.show()
-                    print str(cap.get(1))
                     cv2.imshow('frameActual',frameActual)
                     cv2.imshow('frameSiguiente',frameSiguiente)
                     if cv2.waitKey(500) & 0xFF == ord('q'):
@@ -157,8 +158,3 @@ class sfm_neme:
                 break
         cap.release()
         cv2.destroyAllWindows()
-
-mapeo = sfm_neme('./videoInput/2.mp4','./calibrateCamera/camera_calibration.npz')
-# mtx,dist,rvecs,tvecs = mapeo.importarCalibracionCamara()
-# print str(dist)
-mapeo.sfmSolver()

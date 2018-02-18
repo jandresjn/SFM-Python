@@ -4,7 +4,7 @@ import vtk
 
 class VtkPointCloud:
     'Clase para visualizar nubes de puntos  usando VTK'
-    def __init__(self, maxNumPoints=1e9):
+    def __init__(self, maxNumPoints=1e8):
         self.maxNumPoints = maxNumPoints
         self.vtkPolyData = vtk.vtkPolyData()
         self.clearPoints()

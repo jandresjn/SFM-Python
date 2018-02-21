@@ -6,19 +6,8 @@ import cv2
 import math
 import glob
 import numpy as np
-<<<<<<< Updated upstream
-from PIL import Image
-from numpy import linalg
-
-#-----------------------------------------------------------------------------------------------
-#Para cargar imagenes en vez de un video...
-#images = sorted(glob.glob('./TestImages/*.jpg'),key=lambda f: int(filter(str.isdigit, f)))
-#print str(images)
-#-----------------------------------------------------------------------------------------------
-=======
 from VtkPointCloud import VtkPointCloud
 from imageUtilities import Imagen
->>>>>>> Stashed changes
 
 class sfm_neme:
     'Clase para aplicar SFM usando Opencv 3.2'
@@ -26,8 +15,6 @@ class sfm_neme:
     def __init__(self,videoPath,calibracionCamara):
         self.videoPath = videoPath
         self.calibracionCamara = calibracionCamara
-<<<<<<< Updated upstream
-=======
         self.detector = cv2.xfeatures2d.SURF_create(400) # Lo defino general, por que lo utilizaré en 2 funciones.
         self.FLANN_INDEX_KDTREE = 1
         self.flann_params = dict(algorithm=self.FLANN_INDEX_KDTREE, trees=5)
@@ -36,42 +23,10 @@ class sfm_neme:
         self.ratio = 0.70 # Ratio para el filtro de matches...
         self.mtx,self.dist= None,None
         self.images_path= []
->>>>>>> Stashed changes
 
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
     def importarCalibracionCamara(self):
-<<<<<<< Updated upstream
-        with np.load(self.calibracionCamara) as X:
-            mtx, dist, rvecs, tvecs = [X[i] for i in ('mtx','dist','rvecs','tvecs')]
-            return mtx,dist,rvecs,tvecs
-
-    def sfmSolver(self):
-        cap = cv2.VideoCapture(self.videoPath)
-        while(cap.isOpened()):
-            success, frame = cap.read()
-            #print str(ret)
-            if (success and (int(round(cap.get(1))) % 10 == 0 or int(round(cap.get(1)))==1)):
-                # Efectua la lectura cada n frames, en este caso 10.
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                rows,cols = gray.shape
-                M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
-                dst = cv2.warpAffine(gray,M,(cols,rows))
-                print str(cap.get(1))
-                cv2.imshow('frame',dst)
-                if cv2.waitKey(500) & 0xFF == ord('q'):
-                    break
-            elif success == False:
-                cv2.waitKey(0)
-                break
-        cap.release()
-        cv2.destroyAllWindows()
-
-mapeo = sfm_neme('./videoInput/1.mp4','./calibrateCamera/camera_calibration.npz')
-mtx,dist,rvecs,tvecs = mapeo.importarCalibracionCamara()
-print str(dist)
-mapeo.sfmSolver()
-=======
         if (type(self.calibracionCamara) is str):
             with np.load(self.calibracionCamara) as X:
                 mtx, dist, rvecs, tvecs = [X[i] for i in ('mtx','dist','rvecs','tvecs')]
@@ -357,4 +312,3 @@ mapeo.sfmSolver()
 #                 # if cv2.waitKey(500) & 0xFF == ord('q'):
 #                 # break
 #                 cv2.destroyAllWindows()
->>>>>>> Stashed changes

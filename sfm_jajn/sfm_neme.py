@@ -13,7 +13,7 @@ class sfm_neme:
     'Clase para aplicar SFM usando Opencv 3.2'
     #Próximas variables
     def __init__(self,videoPath,calibracionCamara):
-        self.videoPath = videoPath
+        self.mediaPath = videoPath
         self.calibracionCamara = calibracionCamara
         self.detector = cv2.xfeatures2d.SURF_create(400) # Lo defino general, por que lo utilizaré en 2 funciones.
         self.FLANN_INDEX_KDTREE = 1

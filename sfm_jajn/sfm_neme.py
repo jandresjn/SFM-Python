@@ -1,9 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import os
-import sys
+ # SFM by Jorge Andrés Jaramillo Neme ----> Thesis UAO
+#...............................................................................................
 import cv2
-import math
 import glob
 import numpy as np
 from VtkPointCloud import VtkPointCloud
@@ -26,6 +25,7 @@ class sfm_neme:
 
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
+
     def importarCalibracionCamara(self):
         if (type(self.calibracionCamara) is str):
             with np.load(self.calibracionCamara) as X:
@@ -42,6 +42,7 @@ class sfm_neme:
             cy=self.calibracionCamara[2]
             mtx=np.array([[focal,0,cx],[0,focal,cy],[0,0,1]],np.float32)
             dist=np.zeros((1,5))
+            # dist=np.array([-0.152046, -0.050096, -0.001488, -0.000074, 0.000000])
             print 'mtx: '
             print mtx
             print 'dist: '+ str(dist)
@@ -119,6 +120,7 @@ class sfm_neme:
 # Encuentra el mejor par de imágenes entre las primeras 10 para empezar la nube de puntos.
     def find2d3dPointsBase(self):
         img_base= cv2.imread(self.images_path[0])
+        img_base= self.preProcessing(img_base)
         min_inliers_ratio=0
         index_winner=0
         p1_winner = None
@@ -127,6 +129,7 @@ class sfm_neme:
         for index in range(9):
             print "-------------------------INICIA-----------------------------------"
             img_actual=cv2.imread(self.images_path[index+1])
+            img_actual=self.preProcessing(img_actual)
             p1_filtrado, p2_filtrado,matches_subset,matches_count=self.featureMatching(img_base,img_actual)
             M, mask = cv2.findHomography(p1_filtrado, p2_filtrado, cv2.RANSAC,5.0)
             mask_inliers= float(cv2.countNonZero(mask))
@@ -145,12 +148,40 @@ class sfm_neme:
         E,mask =cv2.findEssentialMat(p1_winner,p2_winner,self.mtx,cv2.RANSAC,0.999,1.0)
         points, R, t,mask= cv2.recoverPose(E, p1_winner,p2_winner)
         P2=np.array([[R[0,0],R[0,1], R[0,2], t[0]],[R[1,0],R[1,1], R[1,2], t[1]],[R[2,0],R[2,1], R[2,2], t[2]]],np.float32)
-
+        imagen_ganadora=cv2.imread(self.images_path[index_winner])
+        imagen_ganadora=self.preProcessing(imagen_ganadora)
         tempEye=np.eye(3)
         P1=np.zeros((3,4))
         P1[:,:-1]=tempEye
         self.CheckCoherentRotation(R)
+        #-----------------------------------OPTICAL FLOW------------------------------------------------------
+        # flow = cv2.calcOpticalFlowFarneback(img_base,imagen_ganadora, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        # print "flow" + str(flow.shape)
+        # vectorFlow=[]
+        # lpoints=[]
+        # rpoints=[]
+        # ancho,largo = img_base.shape
+        # print ancho
+        # for y in range(0,ancho-1):
+        #    for x in range(0,largo-1):
+        #        vectorFlow= flow[y,x]
+        #        # print vectorFlow
+        #        # print vectorFlow.shape
+        #        # np.insert(lpoints,1,[x,y],axis=0)
+        #        if (abs(vectorFlow[0]) > 0.0001 or abs(vectorFlow[1])> 0.0001):
+        #            lpoints.append([x,y])
+        #            rpoints.append([x+vectorFlow[1],y+vectorFlow[0]])
+        #        # print vectorFlow[0]
+        # lpoints=np.asarray(lpoints,np.float32)
+        # rpoints=np.asarray(rpoints,np.float32)
+        # print "lpoints y rpoints shapes: "
+        # print lpoints.shape
+        # print rpoints.shape
+        # print "pwinners shapes"
+        # print p1_winner.shape
+#---------------------------TEMPORAL POR SI SE DESEA VER CON OPTICAL FLOW---------------------------------------
         puntos3d = self.triangulateAndFind3dPoints(P1,P2,p1_winner,p2_winner)
+        # puntos3d = self.triangulateAndFind3dPoints(P1,P2,lpoints,rpoints) # COMENTAR ESTE Y ACTIVAR EL OTRO PARA QUITAR OPTICAL....
 # Hago set de los parámetros requeridos para la comparación a las imagenes iniciales:
         self.arregloImagen[index_winner].Pcam = P2
         self.arregloImagen[index_winner].p2dAsociados = p2_winner
@@ -245,8 +276,9 @@ class sfm_neme:
         puntos3d=self.find2d3dPointsBase()
         self.puntos3dTotal=puntos3d
         print "puntos totales antes: " + str(puntos3d.shape)
-        self.addView()
+        # self.addView()
         print "puntos totales después: " + str(self.puntos3dTotal.shape)
+        # print np.median(puntos3d,axis=0)
          # Temporal
         pointCloud = VtkPointCloud()
         for k in xrange(len(self.puntos3dTotal)):
@@ -255,7 +287,8 @@ class sfm_neme:
 
         pointCloud.renderPoints(pointCloud)
 
-#
+#     [-0.33183324 -0.13742721 -9.25939941]
+
 #     def sfmSolver(self):
 #         self.mtx,self.dist=self.importarCalibracionCamara()
 #         self.images_path = sorted(glob.glob(self.mediaPath),key=lambda f: int(filter(str.isdigit, f)))

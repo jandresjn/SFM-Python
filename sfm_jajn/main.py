@@ -20,5 +20,7 @@ import numpy
 # mapeo = sfm_neme('./mediaInput/templeSet/*.png','./calibrateCamera/camera_calibration.npz')
 # mapeo = sfm_neme('./mediaInput/templeSet/*.png',[800,400,225])
 mapeo = sfm_neme('./mediaInput/templeSet/*.png',[1520.4,302.32,246.87])
+# mapeo = sfm_neme('./mediaInput/templeSet3/*.jpg',[6644.158796,974.051090,708.302330])
+# mapeo = sfm_neme('./mediaInput/chepeSet/*.png','./calibrateCamera/camera_calibration.npz')
 mapeo.sfmSolver()
 print 'Fin'

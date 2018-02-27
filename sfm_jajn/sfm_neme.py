@@ -18,7 +18,7 @@ class sfm_neme:
         self.flann_params = dict(algorithm=self.FLANN_INDEX_KDTREE, trees=5)
         self.matcher = cv2.FlannBasedMatcher(self.flann_params, {})
         self.matches= None
-        self.ratio = 0.70 # Ratio para el filtro de matches...
+        self.ratio = 0.75 # Ratio para el filtro de matches...
         self.mtx,self.dist= None,None
         self.images_path= []
         self.index_winner_base=None
@@ -121,7 +121,7 @@ class sfm_neme:
         p1_winner = None
         p2_winner = None
         # for index in range(len(self.images_path)-1):# Range corresponde con cuántas imagenes comparar después de la imagen base.
-        for index in range(5):
+        for index in range(9):
             print "-------------------------INICIA-----------------------------------"
             img_actual=cv2.imread(self.images_path[index+1])
             img_actual=self.preProcessing(img_actual)
@@ -213,7 +213,8 @@ class sfm_neme:
             bestInlierRatio = 0.0
             bestImgComparadaIndex=0
             paqueteApto=False
-            while (contador <= 10 and imgActualPos > 1 and  imageIndex != self.index_winner_base ):
+            contadorBuffer=10
+            while (contador <= contadorBuffer and imgActualPos > 1 and  imageIndex != self.index_winner_base ):
                 imgComparadaPos=imgActualPos-contador
                 if ( imgComparadaPos != 0 ) : # Compara hasta que haya 10 imagenes o no haya más.
                     print "imagenActual: " + str(imgActualPos) + " imagen comparada : "+ str(imgComparadaPos)
@@ -227,7 +228,7 @@ class sfm_neme:
                         mask_ratio= mask_inliers/matches_count
                         print "matches count: "+ str(matches_count)
                         print "Inliers ratio: " + str(mask_ratio)+ " Imagen Comparada: "+ str(imgComparadaPos)
-                        if (mask_ratio > bestInlierRatio and matches_count > 100 ):
+                        if (mask_ratio > bestInlierRatio and matches_count > 50):
                             bestInlierRatio = mask_ratio
                             bestInlierPoints1=p1_filtrado
                             bestInlierPoints2=p2_filtrado
@@ -240,7 +241,7 @@ class sfm_neme:
                 contador += 1
                 print "aumento contador, contador Actual aumentado : "+ str(contador)
                 # Teniendo los mejores puntos de la imagen ganadora, se procesa con la imagen actual para hallar los puntos 3d...
-                if((contador > 10 or imgComparadaPos <=1) and (self.arregloImagen[bestImgComparadaIndex].p3dAsociados is not None) and paqueteApto == True ):
+                if((contador > contadorBuffer or imgComparadaPos <=1) and (self.arregloImagen[bestImgComparadaIndex].p3dAsociados is not None) and paqueteApto == True ):
                     print "INICIA SOLVEPNPRANSAC CON LA IMAGEN GANADORA:"
                     print "se va a ransaquear con la mejor imagen : " + str(bestImgComparadaIndex+1)
                     # Uso función para asociar los puntos 2d que corresponden con la nube de puntos de la img comparada...

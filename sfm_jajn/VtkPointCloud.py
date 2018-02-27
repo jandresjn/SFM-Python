@@ -4,7 +4,7 @@ import vtk
 
 class VtkPointCloud:
     'Clase para visualizar nubes de puntos  usando VTK'
-    def __init__(self, maxNumPoints=1e8):
+    def __init__(self, maxNumPoints,fPointX,fPointY,fPointZ):
         self.maxNumPoints = maxNumPoints
         self.vtkPolyData = vtk.vtkPolyData()
         self.clearPoints()
@@ -15,8 +15,9 @@ class VtkPointCloud:
         self.vtkActor.SetMapper(mapper)
         self.vtkActor.GetProperty().SetColor(1,1,1)
         self.camera = vtk.vtkCamera()
-        self.camera.SetPosition(0, 0, -15)
-        self.camera.SetFocalPoint(-0.33183324,-0.13742721,-9.25939941)
+        self.camera.SetPosition(0, 0,-10)
+        # self.camera.SetFocalPoint(-0.33183324,-0.13742721,-9.25939941)
+        self.camera.SetFocalPoint(fPointX,fPointY,fPointZ)
     def addPoint(self, point):
         if self.vtkPoints.GetNumberOfPoints() < self.maxNumPoints:
             pointId = self.vtkPoints.InsertNextPoint(point[:])

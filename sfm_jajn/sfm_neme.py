@@ -9,8 +9,7 @@ from VtkPointCloud import VtkPointCloud
 from imageUtilities import Imagen
 
 class sfm_neme:
-    'Clase para aplicar SFM usando Opencv 3.2'
-    #Próximas variables
+    'Clase para aplicar SFM usando Opencv 3.4'
     def __init__(self,videoPath,calibracionCamara):
         self.mediaPath = videoPath
         self.calibracionCamara = calibracionCamara
@@ -22,7 +21,7 @@ class sfm_neme:
         self.ratio = 0.70 # Ratio para el filtro de matches...
         self.mtx,self.dist= None,None
         self.images_path= []
-
+        self.index_winner_base=None
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
 
@@ -37,12 +36,12 @@ class sfm_neme:
                 return mtx, dist
         else:
             print 'Se selecciona entrada K manual'
-            focal=self.calibracionCamara[0]
-            cx=self.calibracionCamara[1]
-            cy=self.calibracionCamara[2]
+            focal=self.calibracionCamara[0][0]
+            cx=self.calibracionCamara[0][1]
+            cy=self.calibracionCamara[0][2]
             mtx=np.array([[focal,0,cx],[0,focal,cy],[0,0,1]],np.float32)
-            dist=np.zeros((1,5))
-            # dist=np.array([-0.152046, -0.050096, -0.001488, -0.000074, 0.000000])
+            # dist=np.zeros((1,5))
+            dist=np.asarray(self.calibracionCamara[1],np.float32)
             print 'mtx: '
             print mtx
             print 'dist: '+ str(dist)
@@ -60,9 +59,6 @@ class sfm_neme:
         print 'matches sin filtrar :' + str(len(self.matches))
         # Se encuentran los mejores matches según el ratio especificado y se agrupan en un array.
         filtered_matches = []
-        # for m in self.matches:
-        #     if len(m) == 2 and m[0].distance < m[1].distance * self.ratio:
-        #         filtered_matches.append(m[0])
         for m,n in self.matches:
             if m.distance < self.ratio*n.distance:
                 filtered_matches.append(m)
@@ -80,7 +76,6 @@ class sfm_neme:
         next_features, next_descs = self.detector.detectAndCompute(inputImage2, None)
         self.matches = self.matcher.knnMatch(next_descs, trainDescriptors=base_descs, k=2)
         print "\t Match Count: ", len(self.matches)
-        #print 'matche' + str(matches)
         matches_subset = self.filter_matches()
         matches_count = float(len(matches_subset))
         print "\t Filtered Match Count: ", matches_count
@@ -117,7 +112,7 @@ class sfm_neme:
         puntos3d = point_4d[:3, :].T # Elimina el último valor del vector y acomoda a la matriz (n,3)
         return puntos3d
 
-# Encuentra el mejor par de imágenes entre las primeras 10 para empezar la nube de puntos.
+# Encuentra el mejor par de imágenes entre las primeras n para empezar la nube de puntos.
     def find2d3dPointsBase(self):
         img_base= cv2.imread(self.images_path[0])
         img_base= self.preProcessing(img_base)
@@ -126,7 +121,7 @@ class sfm_neme:
         p1_winner = None
         p2_winner = None
         # for index in range(len(self.images_path)-1):# Range corresponde con cuántas imagenes comparar después de la imagen base.
-        for index in range(9):
+        for index in range(5):
             print "-------------------------INICIA-----------------------------------"
             img_actual=cv2.imread(self.images_path[index+1])
             img_actual=self.preProcessing(img_actual)
@@ -145,11 +140,14 @@ class sfm_neme:
                 p2_winner=p2_filtrado
             print "-------------------------ACABA-----------------------------------"
         print "La imagen con menos ratio inlier es imagen: "+ str(index_winner+1) + " e index: " + str(index_winner)
+        self.index_winner_base= index_winner
         E,mask =cv2.findEssentialMat(p1_winner,p2_winner,self.mtx,cv2.RANSAC,0.999,1.0)
-        points, R, t,mask= cv2.recoverPose(E, p1_winner,p2_winner)
+        points, R, t,mask= cv2.recoverPose(E, p1_winner,p2_winner,self.mtx)
         P2=np.array([[R[0,0],R[0,1], R[0,2], t[0]],[R[1,0],R[1,1], R[1,2], t[1]],[R[2,0],R[2,1], R[2,2], t[2]]],np.float32)
-        imagen_ganadora=cv2.imread(self.images_path[index_winner])
-        imagen_ganadora=self.preProcessing(imagen_ganadora)
+        #--------------------------------------OPTICAL FLOW--------------------------------------------------
+        # imagen_ganadora=cv2.imread(self.images_path[index_winner])
+        # imagen_ganadora=self.preProcessing(imagen_ganadora)
+        #-----------------------------------------------------------------------------------------------------
         tempEye=np.eye(3)
         P1=np.zeros((3,4))
         P1[:,:-1]=tempEye
@@ -191,8 +189,21 @@ class sfm_neme:
         self.arregloImagen[0].p3dAsociados=puntos3d
         return puntos3d
 
+    def findP2dAsociadosAlineados(self,p2dAsociados,p3dAsociados,imgPoints1,imgPoints2):
+        p2dAsociadosAlineados = []
+        p3dAsociadosAlineados = []
+        for index3d, point3d in enumerate(p3dAsociados):
+            for index2d, point2d in enumerate(imgPoints1):
+                if(point2d[0] == p2dAsociados[index3d][0] and point2d[1] == p2dAsociados[index3d][1]):
+                    p2dAsociadosAlineados.append(imgPoints2[index2d])
+                    p3dAsociadosAlineados.append(p3dAsociados[index3d])
+
+        return np.asarray(p2dAsociadosAlineados,np.float32),np.asarray(p3dAsociadosAlineados,np.float32)
+
+
+
     def addView(self):
-        for imageIndex in range(len(self.arregloImagen)-1):
+        for imageIndex in range(len(self.arregloImagen)):
         # for imageIndex in range(4):
             imgActualPos=imageIndex+1
             contador=1
@@ -201,14 +212,13 @@ class sfm_neme:
             bestInlierPoints2=None
             bestInlierRatio = 0.0
             bestImgComparadaIndex=0
-            bestM=None
             paqueteApto=False
-            while (contador <= 10 and imgActualPos > 1 ):
+            while (contador <= 10 and imgActualPos > 1 and  imageIndex != self.index_winner_base ):
                 imgComparadaPos=imgActualPos-contador
-                if ( imgComparadaPos != 0 ) : # La imagen 1  no puede compararse con anteriores...
+                if ( imgComparadaPos != 0 ) : # Compara hasta que haya 10 imagenes o no haya más.
                     print "imagenActual: " + str(imgActualPos) + " imagen comparada : "+ str(imgComparadaPos)
                     if (self.arregloImagen[imgComparadaPos-1].p3dAsociados is not None): # imgComparadaPos -1 es el index...
-                        print "La imagen comparada apta es:  " + str(imgComparadaPos)
+                        print "La imagen comparada es apta, es la :  " + str(imgComparadaPos)
                         # Creo la variable imagenComparada, la cual es el imread() de la imagen a comparar que es apta por que tiene p3d asociados...
                         imagenComparada=cv2.imread(self.images_path[imgComparadaPos-1])
                         p1_filtrado, p2_filtrado,matches_subset,matches_count=self.featureMatching(imagenActual,imagenComparada)
@@ -217,12 +227,11 @@ class sfm_neme:
                         mask_ratio= mask_inliers/matches_count
                         print "matches count: "+ str(matches_count)
                         print "Inliers ratio: " + str(mask_ratio)+ " Imagen Comparada: "+ str(imgComparadaPos)
-                        if (mask_ratio > bestInlierRatio and matches_count > 20 ):
+                        if (mask_ratio > bestInlierRatio and matches_count > 100 ):
                             bestInlierRatio = mask_ratio
                             bestInlierPoints1=p1_filtrado
                             bestInlierPoints2=p2_filtrado
                             bestImgComparadaIndex =imgComparadaPos-1
-                            bestM=M
                             paqueteApto = True
                             print "actualizo mejores"
                 elif(imgComparadaPos <=0):
@@ -231,39 +240,40 @@ class sfm_neme:
                 contador += 1
                 print "aumento contador, contador Actual aumentado : "+ str(contador)
                 # Teniendo los mejores puntos de la imagen ganadora, se procesa con la imagen actual para hallar los puntos 3d...
-                if(((contador > 10 and paqueteApto == True) or imgComparadaPos <=1) and (self.arregloImagen[bestImgComparadaIndex].p3dAsociados is not None) and paqueteApto == True ):
-                    print "Inicia ranqueamiento..."
+                if((contador > 10 or imgComparadaPos <=1) and (self.arregloImagen[bestImgComparadaIndex].p3dAsociados is not None) and paqueteApto == True ):
+                    print "INICIA SOLVEPNPRANSAC CON LA IMAGEN GANADORA:"
                     print "se va a ransaquear con la mejor imagen : " + str(bestImgComparadaIndex+1)
-                    bestM=np.linalg.inv(bestM)
-                    p2dAsociadosAlineados= cv2.perspectiveTransform(np.array([self.arregloImagen[bestImgComparadaIndex].p2dAsociados]),bestM)
-                    print "Se chequean shapes de entrada p3dAsociados : " + str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape) + " p2dAsociados: " +str(np.squeeze(p2dAsociadosAlineados).shape)
-                    _,rvecs, tvecs, inliers = cv2.solvePnPRansac(self.arregloImagen[bestImgComparadaIndex].p3dAsociados,np.squeeze(p2dAsociadosAlineados), self.mtx, self.dist)
+                    # Uso función para asociar los puntos 2d que corresponden con la nube de puntos de la img comparada...
+                    p2dAsociadosAlineados,p3dAsociadosAlineados=  self.findP2dAsociadosAlineados(self.arregloImagen[bestImgComparadaIndex].p2dAsociados,self.arregloImagen[bestImgComparadaIndex].p3dAsociados,bestInlierPoints2,bestInlierPoints1)
+                    _,rvecs, tvecs, inliers = cv2.solvePnPRansac(p3dAsociadosAlineados,p2dAsociadosAlineados, self.mtx, self.dist)
                     R = cv2.Rodrigues(rvecs.T)
 
-                    print "ransac inliers: " + str(cv2.countNonZero(inliers))
                     print "shape p3d ransaqueados: " +str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape)
                     print "shape p2d ransaqueados: " +str(np.squeeze(p2dAsociadosAlineados).shape)
                     print "shape tvecs" + str(tvecs)
-                    print "R  : " + str(R[0])
+                    # print "R  : " + str(R)
                     #self.CheckCoherentRotation(R[0]) pa saber si es válida la R
                     PcamBest=np.hstack((R[0],tvecs))
                     print "PcamBest: "
                     print PcamBest
                     self.arregloImagen[imageIndex].Pcam=PcamBest
-                    self.arregloImagen[imageIndex].p2dAsociados=np.squeeze(p2dAsociadosAlineados)
+                    # self.arregloImagen[imageIndex].p2dAsociados=np.squeeze(p2dAsociadosAlineados)
+                    self.arregloImagen[imageIndex].p2dAsociados=bestInlierPoints1
                     print "chequeo dimensiones para concatenar  p2dAsociados: " + str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
                     print "chequeo dimensiones para concatenar  bestInlierPoints2: " + str(bestInlierPoints2.shape)
-                    # self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2))
-                    # self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2))
-                    # puntos3d = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2)
-                    puntos3d = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,np.squeeze(p2dAsociadosAlineados),self.arregloImagen[bestImgComparadaIndex].p2dAsociados)
+                    self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2))
+                    print "shape p2dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
+                    puntos3d = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2)
+                    # puntos3d = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,np.squeeze(p2dAsociadosAlineados),self.arregloImagen[bestImgComparadaIndex].p2dAsociados)
                     print "puntos3d encontrados" + str(len(puntos3d))
                     self.arregloImagen[imageIndex].p3dAsociados=puntos3d
-                    # self.arregloImagen[bestImgComparadaIndex].p3dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p3dAsociados,puntos3d))
+                    self.arregloImagen[bestImgComparadaIndex].p3dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p3dAsociados,puntos3d))
+                    print "shape p3dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape)
                     self.puntos3dTotal=np.concatenate((self.puntos3dTotal,puntos3d))
                     print "Se actualizaron datos del paquete"
                     paqueteApto=False
                     break
+    # def probar3Fotos(self):
 
 
 
@@ -274,74 +284,20 @@ class sfm_neme:
             self.arregloImagen.append(Imagen(path))
 
         puntos3d=self.find2d3dPointsBase()
+        punto3dMediana=np.median(puntos3d,axis=0)
+        print "mediana: " + str(punto3dMediana)
         self.puntos3dTotal=puntos3d
         print "puntos totales antes: " + str(puntos3d.shape)
-        # self.addView()
+        self.addView()
         print "puntos totales después: " + str(self.puntos3dTotal.shape)
         # print np.median(puntos3d,axis=0)
          # Temporal
-        pointCloud = VtkPointCloud()
+        pointCloud = VtkPointCloud(1e8,punto3dMediana[0],punto3dMediana[1],punto3dMediana[2])
         for k in xrange(len(self.puntos3dTotal)):
             point=self.puntos3dTotal[k,:3]
+            # point[1]=point[1]*-1
+            # point[0]=point[0]*-1
+            # point = point * -1
             pointCloud.addPoint(point)
 
         pointCloud.renderPoints(pointCloud)
-
-#     [-0.33183324 -0.13742721 -9.25939941]
-
-#     def sfmSolver(self):
-#         self.mtx,self.dist=self.importarCalibracionCamara()
-#         self.images_path = sorted(glob.glob(self.mediaPath),key=lambda f: int(filter(str.isdigit, f)))
-#         # print str(images_path)
-#         print len(self.images_path)
-#         for index in range(len(self.images_path)):
-#             frame = cv2.imread(self.images_path[index])
-#             print 'imagen : '+ str(self.images_path[index])
-#             print 'index: ' + str(index)
-#             frameSiguiente = self.preProcessing(frame)
-#
-#             if (index == 0): # Esto está temporal, mientras se le añade lo de múltiples vistas mas lo de bundle adjustment
-#                 frameActual = frameSiguiente
-#             elif (index >= 1 and index ):
-#                 p1_filtrado, p2_filtrado,matches_subset=self.featureMatching(frameActual,frameSiguiente)
-#                 E,mask =cv2.findEssentialMat(p1_filtrado,p2_filtrado,self.mtx,cv2.RANSAC,0.999,1.0)
-#                 points, R, t,mask= cv2.recoverPose(E, p1_filtrado,p2_filtrado)
-#                 P2=np.array([[R[0,0],R[0,1], R[0,2], t[0]],[R[1,0],R[1,1], R[1,2], t[1]],[R[2,0],R[2,1], R[2,2], t[2]]],np.float32)
-#                 tempEye=np.eye(3)
-#                 P1=np.zeros((3,4))
-#                 P1[:,:-1]=tempEye
-#                 self.CheckCoherentRotation(R)
-#                 #Acopla las dimensiones de los arreglos a las requeridas por la función undistortPoints.
-#                 p1_filtrado=np.expand_dims(p1_filtrado, axis=0)
-#                 normp1=cv2.undistortPoints(p1_filtrado,self.mtx,self.dist)
-#                 p2_filtrado=np.expand_dims(p2_filtrado, axis=0)
-#                 normp2=cv2.undistortPoints(p2_filtrado,self.mtx,self.dist)
-#                 #Encuentra las coordenadas homogéneas del punto 3d relacionado a los puntos 2d
-#                 point_4d_hom=cv2.triangulatePoints(P1, P2,normp1,normp2)
-#                 point_4d = point_4d_hom / np.tile(point_4d_hom[-1, :], (4, 1)) # Divide todo por el valor último del vector.
-#                 puntos3d = point_4d[:3, :].T # Elimina el último valor del vector y acomoda a la matriz (n,3)
-#                 puntosTotal=np.zeros((1,3))
-#                 print 'shape puntos 3d : '+ str(puntos3d.shape)
-#                 print 'shape puntos total: '+ str(puntosTotal.shape)
-#                 puntosTotal=np.concatenate((puntosTotal,puntos3d))
-#                 #
-#                 frameActual=frameSiguiente
-#
-# #.........................GRAFICAR PUNTOS............................................
-#
-#             if (index == (len(self.images_path)-1)):
-#                 pointCloud = VtkPointCloud()
-#
-#                 for k in xrange(len(puntosTotal)):
-#                     point=puntosTotal[k,:3]
-#                     pointCloud.addPoint(point)
-#
-#                 print 'add point: ' + str(puntos3d[1,:3])
-#                 pointCloud.renderPoints(pointCloud)
-#
-#                 cv2.imshow('frameActual',frameActual)
-#                 cv2.imshow('frameSiguiente',frameSiguiente)
-#                 cv2.waitKey(0)
-#                 # if cv2.waitKey(500) & 0xFF == ord('q'):
-#                 # break
-#                 cv2.destroyAllWindows()

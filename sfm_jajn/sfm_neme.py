@@ -24,7 +24,7 @@ class sfm_neme:
         self.index_winner_base=None
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
-
+        self.MIN_REPROJECTION_ERROR = 5.0
     def importarCalibracionCamara(self):
         if (type(self.calibracionCamara) is str):
             with np.load(self.calibracionCamara) as X:
@@ -110,7 +110,35 @@ class sfm_neme:
         point_4d_hom=cv2.triangulatePoints(P1, P2,normp1,normp2)
         point_4d = point_4d_hom / np.tile(point_4d_hom[-1, :], (4, 1)) # Divide todo por el valor último del vector.
         puntos3d = point_4d[:3, :].T # Elimina el último valor del vector y acomoda a la matriz (n,3)
-        return puntos3d
+        print "puntos3d sin filtrar por reproyección: " +str(len(puntos3d))
+        rvec1= cv2.Rodrigues(np.asarray(P1[:3,:3],np.float32))
+        rvec1= rvec1[0]
+        tvec1=P1[:,-1]
+        projected1=cv2.projectPoints(puntos3d,rvec1,tvec1,self.mtx,self.dist)
+        projected1=np.squeeze(projected1[0])
+        print "projected1: " + str(projected1.shape)
+        rvec2 = cv2.Rodrigues(np.asarray(P2[:3,:3],np.float32))
+        rvec2= rvec2[0]
+        tvec2=P2[:,-1]
+        projected2=cv2.projectPoints(puntos3d,rvec2,tvec2,self.mtx,self.dist)
+        projected2=np.squeeze(projected2[0])
+        print "projected2: " + str(projected2.shape)
+        puntos3dFiltrados=[]
+        puntos2dAsociados1=[]
+        puntos2dAsociados2=[]
+        for index,point3d in enumerate(puntos3d):
+            if (np.linalg.norm(projected1[index]-puntos1[index]) < self.MIN_REPROJECTION_ERROR or np.linalg.norm(projected2[index]-puntos2[index]) < self.MIN_REPROJECTION_ERROR ):
+                puntos3dFiltrados.append(point3d)
+                puntos2dAsociados1.append(puntos1[index])
+                puntos2dAsociados2.append(puntos2[index])
+        puntos3dFiltrados = np.asarray(puntos3dFiltrados,np.float32)
+        puntos2dAsociados1 = np.asarray(puntos2dAsociados1,np.float32)
+        puntos2dAsociados2 = np.asarray(puntos2dAsociados2,np.float32)
+        print "puntos3d filtrados por reproyección: " + str(puntos3dFiltrados.shape)
+        # print "puntos2d filtrados por reproyección: " + str(puntos2dAsociados1.shape)
+        return puntos3dFiltrados,puntos2dAsociados1,puntos2dAsociados2
+
+
 
 # Encuentra el mejor par de imágenes entre las primeras n para empezar la nube de puntos.
     def find2d3dPointsBase(self):
@@ -121,12 +149,12 @@ class sfm_neme:
         p1_winner = None
         p2_winner = None
         # for index in range(len(self.images_path)-1):# Range corresponde con cuántas imagenes comparar después de la imagen base.
-        for index in range(9):
+        for index in range(5):
             print "-------------------------INICIA-----------------------------------"
             img_actual=cv2.imread(self.images_path[index+1])
             img_actual=self.preProcessing(img_actual)
             p1_filtrado, p2_filtrado,matches_subset,matches_count=self.featureMatching(img_base,img_actual)
-            M, mask = cv2.findHomography(p1_filtrado, p2_filtrado, cv2.RANSAC,5.0)
+            M, mask = cv2.findHomography(p1_filtrado, p2_filtrado, cv2.RANSAC,10.0)
             mask_inliers= float(cv2.countNonZero(mask))
             mask_ratio= mask_inliers/matches_count
             print "index: " + str(index+1)
@@ -178,16 +206,16 @@ class sfm_neme:
         # print "pwinners shapes"
         # print p1_winner.shape
 #---------------------------TEMPORAL POR SI SE DESEA VER CON OPTICAL FLOW---------------------------------------
-        puntos3d = self.triangulateAndFind3dPoints(P1,P2,p1_winner,p2_winner)
+        puntos3d_filtrado,p1_winner_filtrado,p2_winner_filtrado = self.triangulateAndFind3dPoints(P1,P2,p1_winner,p2_winner)
         # puntos3d = self.triangulateAndFind3dPoints(P1,P2,lpoints,rpoints) # COMENTAR ESTE Y ACTIVAR EL OTRO PARA QUITAR OPTICAL....
 # Hago set de los parámetros requeridos para la comparación a las imagenes iniciales:
         self.arregloImagen[index_winner].Pcam = P2
-        self.arregloImagen[index_winner].p2dAsociados = p2_winner
-        self.arregloImagen[index_winner].p3dAsociados = puntos3d
+        self.arregloImagen[index_winner].p2dAsociados = p2_winner_filtrado
+        self.arregloImagen[index_winner].p3dAsociados = puntos3d_filtrado
         self.arregloImagen[0].Pcam = P1
-        self.arregloImagen[0].p2dAsociados=p1_winner
-        self.arregloImagen[0].p3dAsociados=puntos3d
-        return puntos3d
+        self.arregloImagen[0].p2dAsociados=p1_winner_filtrado
+        self.arregloImagen[0].p3dAsociados=puntos3d_filtrado
+        return puntos3d_filtrado
 
     def findP2dAsociadosAlineados(self,p2dAsociados,p3dAsociados,imgPoints1,imgPoints2):
         p2dAsociadosAlineados = []
@@ -223,7 +251,7 @@ class sfm_neme:
                         # Creo la variable imagenComparada, la cual es el imread() de la imagen a comparar que es apta por que tiene p3d asociados...
                         imagenComparada=cv2.imread(self.images_path[imgComparadaPos-1])
                         p1_filtrado, p2_filtrado,matches_subset,matches_count=self.featureMatching(imagenActual,imagenComparada)
-                        M, mask = cv2.findHomography(p1_filtrado, p2_filtrado, cv2.RANSAC,5.0)
+                        M, mask = cv2.findHomography(p1_filtrado, p2_filtrado, cv2.RANSAC,10.0)
                         mask_inliers= float(cv2.countNonZero(mask))
                         mask_ratio= mask_inliers/matches_count
                         print "matches count: "+ str(matches_count)
@@ -258,19 +286,17 @@ class sfm_neme:
                     print "PcamBest: "
                     print PcamBest
                     self.arregloImagen[imageIndex].Pcam=PcamBest
-                    # self.arregloImagen[imageIndex].p2dAsociados=np.squeeze(p2dAsociadosAlineados)
-                    self.arregloImagen[imageIndex].p2dAsociados=bestInlierPoints1
+                    puntos3d_filtrados,bestInlierPoints1_filtrados,bestInlierPoints2_filtrados = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2)
+                    print "puntos3d_filtrados encontrados" + str(len(puntos3d_filtrados))
+                    self.arregloImagen[imageIndex].p2dAsociados=bestInlierPoints1_filtrados
                     print "chequeo dimensiones para concatenar  p2dAsociados: " + str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
-                    print "chequeo dimensiones para concatenar  bestInlierPoints2: " + str(bestInlierPoints2.shape)
-                    self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2))
+                    print "chequeo dimensiones para concatenar  bestInlierPoints2_filtrados: " + str(bestInlierPoints2_filtrados.shape)
+                    self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2_filtrados))
                     print "shape p2dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
-                    puntos3d = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2)
-                    # puntos3d = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,np.squeeze(p2dAsociadosAlineados),self.arregloImagen[bestImgComparadaIndex].p2dAsociados)
-                    print "puntos3d encontrados" + str(len(puntos3d))
-                    self.arregloImagen[imageIndex].p3dAsociados=puntos3d
-                    self.arregloImagen[bestImgComparadaIndex].p3dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p3dAsociados,puntos3d))
+                    self.arregloImagen[imageIndex].p3dAsociados=puntos3d_filtrados
+                    self.arregloImagen[bestImgComparadaIndex].p3dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p3dAsociados,puntos3d_filtrados))
                     print "shape p3dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape)
-                    self.puntos3dTotal=np.concatenate((self.puntos3dTotal,puntos3d))
+                    self.puntos3dTotal=np.concatenate((self.puntos3dTotal,puntos3d_filtrados))
                     print "Se actualizaron datos del paquete"
                     paqueteApto=False
                     break

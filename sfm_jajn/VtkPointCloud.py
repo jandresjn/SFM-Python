@@ -4,7 +4,7 @@ import vtk
 
 class VtkPointCloud:
     'Clase para visualizar nubes de puntos  usando VTK'
-    def __init__(self, maxNumPoints=1e8):
+    def __init__(self, maxNumPoints,fPointX,fPointY,fPointZ):
         self.maxNumPoints = maxNumPoints
         self.vtkPolyData = vtk.vtkPolyData()
         self.clearPoints()
@@ -13,7 +13,11 @@ class VtkPointCloud:
         mapper.SetScalarVisibility(0)
         self.vtkActor = vtk.vtkActor()
         self.vtkActor.SetMapper(mapper)
-        self.vtkActor.GetProperty().SetColor(0,1,0)
+        self.vtkActor.GetProperty().SetColor(1,1,1)
+        self.camera = vtk.vtkCamera()
+        self.camera.SetPosition(0, 0,-10)
+        # self.camera.SetFocalPoint(-0.33183324,-0.13742721,-9.25939941)
+        self.camera.SetFocalPoint(fPointX,fPointY,fPointZ)
     def addPoint(self, point):
         if self.vtkPoints.GetNumberOfPoints() < self.maxNumPoints:
             pointId = self.vtkPoints.InsertNextPoint(point[:])
@@ -37,13 +41,14 @@ class VtkPointCloud:
         renderer.AddActor(pointCloudObj.vtkActor)
         renderer.SetBackground(0.0, 0.0, 0.0)
         transform = vtk.vtkTransform()
-        transform.Translate(1.0, 0.0, 0.0)
+        transform.Translate(0.0, 0.0, 0.0)
 
         axes = vtk.vtkAxesActor()
         #  The axes are positioned with a user transform
         axes.SetUserTransform(transform)
         renderer.AddActor(axes)
-        renderer.ResetCamera()
+        # renderer.ResetCamera()
+        renderer.SetActiveCamera(self.camera)
         renderWindow = vtk.vtkRenderWindow()
         renderWindow.AddRenderer(renderer)
         renderWindowInteractor = vtk.vtkRenderWindowInteractor()

@@ -13,18 +13,25 @@ class sfm_neme:
     def __init__(self,videoPath,calibracionCamara):
         self.mediaPath = videoPath
         self.calibracionCamara = calibracionCamara
-        self.detector = cv2.xfeatures2d.SURF_create(400) # Lo defino general, por que lo utilizaré en 2 funciones.
-        self.FLANN_INDEX_KDTREE = 1
-        self.flann_params = dict(algorithm=self.FLANN_INDEX_KDTREE, trees=5)
-        self.matcher = cv2.FlannBasedMatcher(self.flann_params, {})
+        # self.detector = cv2.xfeatures2d.SURF_create(400) # Lo defino general, por que lo utilizaré en 2 funciones.
+        # self.detectorOrb=cv2.ORB_create()
+        self.detectorAkaze=cv2.AKAZE_create()
+        # self.FLANN_INDEX_KDTREE = 1
+        # self.FLANN_INDEX_LSH = 6 # ORB
+        # self.flann_params = dict(algorithm=self.FLANN_INDEX_KDTREE, trees=5)
+        # self.index_params= dict(algorithm = self.FLANN_INDEX_LSH,table_number = 20,key_size = 12, multi_probe_level = 2) # ORB
+        # self.matcher = cv2.FlannBasedMatcher(self.flann_params, {})
+        # self.search_params = dict(checks=50) # ORB
+        # self.matcher = cv2.FlannBasedMatcher(self.index_params, self.search_params)
+        self.matcher=cv2.BFMatcher(cv2.NORM_HAMMING)
         self.matches= None
-        self.ratio = 0.75 # Ratio para el filtro de matches...
-        self.mtx,self.dist= None,None
+        self.ratio = 0.70 # Ratio para el filtro de matches...
+        self.mtx,self.dist= None, None
         self.images_path= []
         self.index_winner_base=None
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
-        self.MIN_REPROJECTION_ERROR = 5.0
+        self.MIN_REPROJECTION_ERROR = 8
     def importarCalibracionCamara(self):
         if (type(self.calibracionCamara) is str):
             with np.load(self.calibracionCamara) as X:
@@ -59,9 +66,13 @@ class sfm_neme:
         print 'matches sin filtrar :' + str(len(self.matches))
         # Se encuentran los mejores matches según el ratio especificado y se agrupan en un array.
         filtered_matches = []
-        for m,n in self.matches:
+        # print self.matches
+        for (m,n) in self.matches:
             if m.distance < self.ratio*n.distance:
                 filtered_matches.append(m)
+        # for m in self.matches:
+        #     if len(m) == 2 and m[0].distance < m[1].distance * self.ratio:
+        #         filtered_matches.append(m[0])
         return filtered_matches
 
     def imageDistance(self,matches_subset):
@@ -72,17 +83,23 @@ class sfm_neme:
         return sumDistance
 
     def featureMatching(self,inputImage1,inputImage2):
-        base_features, base_descs = self.detector.detectAndCompute(inputImage1, None)
-        next_features, next_descs = self.detector.detectAndCompute(inputImage2, None)
-        self.matches = self.matcher.knnMatch(next_descs, trainDescriptors=base_descs, k=2)
+        # base_features, base_descs = self.detector.detectAndCompute(inputImage1, None)
+        # next_features, next_descs = self.detector.detectAndCompute(inputImage2, None)
+        #-------------ORB----------------
+        # base_features, base_descs = self.detectorOrb.detectAndCompute(inputImage1, None)
+        # next_features, next_descs = self.detectorOrb.detectAndCompute(inputImage2, None)
+        #------------------------------
+        base_features, base_descs = self.detectorAkaze.detectAndCompute(inputImage1, None)
+        next_features, next_descs = self.detectorAkaze.detectAndCompute(inputImage2, None)
+        self.matches = self.matcher.knnMatch(next_descs,base_descs, k=2)
         print "\t Match Count: ", len(self.matches)
         matches_subset = self.filter_matches()
         matches_count = float(len(matches_subset))
         print "\t Filtered Match Count: ", matches_count
-        distance = self.imageDistance(matches_subset)
-        print "\t Distance from Key Image: ", distance
-        averagePointDistance = distance/float(len(matches_subset))
-        print "\t Average Distance: ", averagePointDistance
+        # distance = self.imageDistance(matches_subset)
+        # print "\t Distance from Key Image: ", distance
+        # averagePointDistance = distance/float(len(matches_subset))
+        # print "\t Average Distance: ", averagePointDistance
         kp1 = []
         kp2 = []
         for match in matches_subset:
@@ -225,14 +242,15 @@ class sfm_neme:
                 if(point2d[0] == p2dAsociados[index3d][0] and point2d[1] == p2dAsociados[index3d][1]):
                     p2dAsociadosAlineados.append(imgPoints2[index2d])
                     p3dAsociadosAlineados.append(p3dAsociados[index3d])
-
+        print "shape p2dAsociadosalineados: " + str(np.asarray(p2dAsociadosAlineados,np.float32).shape)
+        print "shape p3dAsociadosalineados: " + str(np.asarray(p3dAsociadosAlineados,np.float32).shape)
         return np.asarray(p2dAsociadosAlineados,np.float32),np.asarray(p3dAsociadosAlineados,np.float32)
 
 
 
     def addView(self):
         for imageIndex in range(len(self.arregloImagen)):
-        # for imageIndex in range(4):
+        # for imageIndex in range(27):
             imgActualPos=imageIndex+1
             contador=1
             imagenActual = cv2.imread(self.images_path[imageIndex])
@@ -274,6 +292,7 @@ class sfm_neme:
                     print "se va a ransaquear con la mejor imagen : " + str(bestImgComparadaIndex+1)
                     # Uso función para asociar los puntos 2d que corresponden con la nube de puntos de la img comparada...
                     p2dAsociadosAlineados,p3dAsociadosAlineados=  self.findP2dAsociadosAlineados(self.arregloImagen[bestImgComparadaIndex].p2dAsociados,self.arregloImagen[bestImgComparadaIndex].p3dAsociados,bestInlierPoints2,bestInlierPoints1)
+
                     _,rvecs, tvecs, inliers = cv2.solvePnPRansac(p3dAsociadosAlineados,p2dAsociadosAlineados, self.mtx, self.dist)
                     R = cv2.Rodrigues(rvecs.T)
 

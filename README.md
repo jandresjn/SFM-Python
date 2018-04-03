@@ -9,7 +9,7 @@ I am following the pipeline of the book "Mastering Opencv 3" in my own way on py
 Structure of the code:
 - main.py - Creates the object of my sfm algorithm and can recieve camera parameters manually or with a npz (camera calibration opencv tutorial).
 
--sfm_neme.py - Is the main class,  it has all the pipeline of the sfm algorithm, the principal function is sfmsolver which uses all the other functions including de bundle adjustment.
+- sfm_neme.py - Is the main class,  it has all the pipeline of the sfm algorithm, the principal function is sfmsolver which uses all the other functions including de bundle adjustment.
 
 - imagesUtilities.py and vtkpointcloud.py are simple classes. The first is a structure of view, which contains principal params, like 2dpoints path camera params etc. And the vtkpointcloud.py is a simple implementation of vtk for showing the 3d points, it recieves a median point of the model, so the camera tries to point to the center of the model.
 

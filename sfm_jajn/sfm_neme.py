@@ -33,7 +33,7 @@ class sfm_neme:
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
         self.puntos3dIndices=None
-        self.MIN_REPROJECTION_ERROR = 8 # IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
+        self.MIN_REPROJECTION_ERROR = 100 # IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
         self.n_cameras=0
         self.n_points=0
         self.camera_indices=None
@@ -197,7 +197,7 @@ class sfm_neme:
         p1_winner = None
         p2_winner = None
         # for index in range(len(self.images_path)-1):# Range corresponde con cuántas imagenes comparar después de la imagen base.
-        for index in range(10): # COMPARA CON LAS PRIMERAS 6 IMÁGENES PARA HALLAR EL PRIMER PAR.
+        for index in range(4): # COMPARA CON LAS PRIMERAS 6 IMÁGENES PARA HALLAR EL PRIMER PAR.
             print "-------------------------INICIA-----------------------------------"
             img_actual=cv2.imread(self.images_path[index+1])
             img_actual=self.preProcessing(img_actual)
@@ -279,19 +279,19 @@ class sfm_neme:
         self.camera_params[index_winner,(14-5):]=P2[:,3] # ES LA TRASLACIÓN
         self.camera_params[0,(14-5):]=P1[:,3]
 
-        P2Quaternion=sba.quaternions.quatFromRotationMatrix(P2[:,:3])
-        # P2Quaternion=Quaternion(matrix=P2[:,:3])
-        # P2QuatVec=np.array((P2Quaternion[0],P2Quaternion[1],P2Quaternion[2],P2Quaternion[3]),np.float32)
-        P2QuatVec=P2Quaternion.asVector()
+        # P2Quaternion=sba.quaternions.quatFromRotationMatrix(P2[:,:3])
+        P2Quaternion=Quaternion(matrix=P2[:,:3])
+        P2QuatVec=np.array((P2Quaternion[0],P2Quaternion[1],P2Quaternion[2],P2Quaternion[3]),np.float32)
+        # P2QuatVec=P2Quaternion.asVector()
 
         # self.camera_params[index_winner,10:14]=P2QuatVec
 
         self.camera_params[index_winner,(10-5):(14-5)]=P2QuatVec
 
-        # P1Quaternion=Quaternion(matrix=P1[:,:3])
-        P1Quaternion=sba.quaternions.quatFromRotationMatrix(P1[:,:3])
-        # P1QuatVec=np.array((P1Quaternion[0],P1Quaternion[1],P1Quaternion[2],P1Quaternion[3]),np.float32)
-        P1QuatVec=P1Quaternion.asVector()
+        P1Quaternion=Quaternion(matrix=P1[:,:3])
+        # P1Quaternion=sba.quaternions.quatFromRotationMatrix(P1[:,:3])
+        P1QuatVec=np.array((P1Quaternion[0],P1Quaternion[1],P1Quaternion[2],P1Quaternion[3]),np.float32)
+        # P1QuatVec=P1Quaternion.asVector()
         # self.camera_params[0,10:14]=P1QuatVec
         self.camera_params[0,(10-5):(14-5)]=P1QuatVec #NO DIST
         print "quaterion: " + str(P2QuatVec)
@@ -424,7 +424,10 @@ class sfm_neme:
                     print PcamBest
                     puntos3d_filtrados,bestInlierPoints1_filtrados,bestInlierPoints2_filtrados = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2,imageIndex,bestImgComparadaIndex)
                     print "puntos3d_filtrados encontrados: " + str(len(puntos3d_filtrados))
+                    print self.puntos3dTotal.shape
+                    print puntos3d_filtrados.shape
                     self.puntos3dTotal=np.concatenate((self.puntos3dTotal,puntos3d_filtrados))
+                    print self.puntos3dTotal.shape
                     # print "chequeo dimensiones para concatenar  p2dAsociados: " + str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
                     # print "chequeo dimensiones para concatenar  bestInlierPoints2_filtrados: " + str(bestInlierPoints2_filtrados.shape)
                     # print "shape p2dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
@@ -447,12 +450,12 @@ class sfm_neme:
 
 #------------------------------------------------------------------------------------------
 
-                    # P2Quaternion=Quaternion(matrix=PcamBest[:,:3])
-                    # P2QuatVec=np.array((P2Quaternion[0],P2Quaternion[1],P2Quaternion[2],P2Quaternion[3]),np.float32)
+                    P2Quaternion=Quaternion(matrix=PcamBest[:,:3])
+                    P2QuatVec=np.array((P2Quaternion[0],P2Quaternion[1],P2Quaternion[2],P2Quaternion[3]),np.float32)
 
 #--------
-                    P2Quaternion=sba.quaternions.quatFromRotationMatrix(PcamBest[:,:3])
-                    P2QuatVec=P2Quaternion.asVector()
+                    # P2Quaternion=sba.quaternions.quatFromRotationMatrix(PcamBest[:,:3])
+                    # P2QuatVec=P2Quaternion.asVector()
                     self.camera_params[imageIndex,(10-5):(14-5)]=P2QuatVec
                     print self.camera_params[imageIndex,(10-5):(14-5)]
                     # self.camera_params[imageIndex,10:14]=P2QuatVec
@@ -462,9 +465,12 @@ class sfm_neme:
                     # print "-----------------BUNDLE LOURAKIS
 #SBA MODIFICA INICIA-------------------------------------------------------------------------------
 
+                    #
+                    print 'image index: ' + str(imageIndex)
+                    if (imageIndex <= self.index_winner_base ):
+                        np.savetxt('camarasMegaTotales',self.camera_params[:self.index_winner_base+1,:],"%4.5f")
+                    else: np.savetxt('camarasMegaTotales',self.camera_params[:imageIndex+1,:],"%4.5f")
 
-
-                    np.savetxt('camarasMegaTotales',self.camera_params[:imageIndex,:],"%4.5f")
                     cameras= sba.Cameras.fromTxt('camarasMegaTotales')
                     np.savetxt("puntosTotales",self.pointParams,"%4.5f")
                     points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
@@ -473,49 +479,65 @@ class sfm_neme:
                     newcams, newpts, info = sba.SparseBundleAdjust(cameras,points,options)
                     self.puntos3dTotal=newpts.B
                     newcams.toTxt('nuevascamaraspro')
+                    print "necams: "
+                    print newcams.camarray
+                    # self.camera_params=newcams.toDylan()
+                    nuevas_camera_params=np.genfromtxt('nuevascamaraspro')
+                    self.camera_params[:len(nuevas_camera_params),:] = nuevas_camera_params
 
+                    PcamBest[:,3]=self.camera_params[imageIndex,(14-5):]
 
-
-
-
-
-
-
-
-
-
-
-
-
-                    # camera_params_base=
-                    cameras= sba.Cameras.fromDylan(self.camera_params)
-                    np.savetxt("puntosTotales",self.pointParams,"%4.5f")
-                    points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
-                    newcams, newpts, info = sba.SparseBundleAdjust(cameras,points)
-
-                    # print "shape self camera params antes: "
-                    # print self.camera_params
-                    # print "shape self camera params después: "
-                    self.camera_params=newcams.toDylan()
-                    # print self.camera_params
-                    # P2[:,3]=self.camera_params[index_winner,14:]
-                    PcamBest[:,3]=self.camera_params[imageIndex,14:]
-
-
-                    # P2QuatVec=self.camera_params[index_winner,10:14]
-                    # P2Quaternion=sba.quaternions.quatFromArray(P2QuatVec)
-                    # P2[:,:3]=P2Quaternion.asRotationMatrix()
-
-                    P1QuatVec=self.camera_params[imageIndex,10:14]
+                    P1QuatVec=self.camera_params[imageIndex,(10-5):(14-5)]
                     print P1QuatVec
-                    # P1Quaternion=Quaternion(array=P1QuatVec)
-                    P1Quaternion=sba.quaternions.quatFromArray(P1QuatVec)
-                    PcamBest[:,:3]=P1Quaternion.asRotationMatrix()
-                    # PcamBest[:,:3]=P1Quaternion.rotation_matrix
+                    P1Quaternion=Quaternion(array=P1QuatVec)
+                    # P1Quaternion=sba.quaternions.quatFromArray(P1QuatVec)
+                    # PcamBest[:,:3]=P1Quaternion.asRotationMatrix()
+                    PcamBest[:,:3]=P1Quaternion.rotation_matrix
+                    print PcamBest[:,:3]
 
                     puntos3d_filtrados=self.puntos3dTotal[-len(puntos3d_filtrados):,:]
 
                     self.pointParams[:,:3]=self.puntos3dTotal
+
+
+
+
+
+
+
+                    #
+                    #
+                    # # camera_params_base=
+                    # cameras= sba.Cameras.fromDylan(self.camera_params)
+                    # np.savetxt("puntosTotales",self.pointParams,"%4.5f")
+                    # points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
+                    # newcams, newpts, info = sba.SparseBundleAdjust(cameras,points)
+                    #
+                    # # print "shape self camera params antes: "
+                    # # print self.camera_params
+                    # # print "shape self camera params después: "
+                    # self.camera_params=newcams.toDylan()
+                    # # print self.camera_params
+                    # # P2[:,3]=self.camera_params[index_winner,14:]
+                    # PcamBest[:,3]=self.camera_params[imageIndex,14:]
+                    #
+                    #
+                    # # P2QuatVec=self.camera_params[index_winner,10:14]
+                    # # P2Quaternion=sba.quaternions.quatFromArray(P2QuatVec)
+                    # # P2[:,:3]=P2Quaternion.asRotationMatrix()
+                    #
+                    # P1QuatVec=self.camera_params[imageIndex,10:14]
+                    # print P1QuatVec
+                    # # P1Quaternion=Quaternion(array=P1QuatVec)
+                    # P1Quaternion=sba.quaternions.quatFromArray(P1QuatVec)
+                    # PcamBest[:,:3]=P1Quaternion.asRotationMatrix()
+                    # # PcamBest[:,:3]=P1Quaternion.rotation_matrix
+                    #
+                    # puntos3d_filtrados=self.puntos3dTotal[-len(puntos3d_filtrados):,:]
+                    #
+                    # self.pointParams[:,:3]=self.puntos3dTotal
+
+
 #SBA MODIFICA END-------------------------------------------------------------------------------
                     self.arregloImagen[imageIndex].Pcam=PcamBest
                     self.arregloImagen[imageIndex].p2dAsociados=bestInlierPoints1_filtrados
@@ -721,32 +743,32 @@ class sfm_neme:
         # print self.camera_params.shape
         #
 
-# SBA IMPORTANTE-------------------------------------------------------------------
-        np.savetxt('camarasMegaTotales',self.camera_params[:,:],"%4.5f")
-        print self.camera_params[:,5:].shape
-        # cameras= sba.Cameras.fromDylan(self.camera_params)
-        cameras= sba.Cameras.fromTxt('camarasMegaTotales')
-        # cameras.zeroLocalRotationEstimates()
-        print "shapes Pont Params: "
-        print self.pointParams.shape
-        # np.random.shuffle(self.pointParams)
-
-        np.savetxt("puntosTotales",self.pointParams,"%4.5f")
-        points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
-        options = sba.Options.fromInput(cameras,points)
-        # options.motstruct = sba.OPTS_STRUCT
-
-        # options.camera = sba.OPTS_CAMS_NODIST
-        # options.nccalib=sba.OPTS_FIX2_INTR
-        options.nccalib=sba.OPTS_FIX5_INTR
-        # options.camera=sba.OPTS_NO_CAMS
-        # options.rot0params = cameras.rot0params
-        # print self.pointParams[:,:3]
-
-        # self.orderParams(self.pointParams)
-        newcams, newpts, info = sba.SparseBundleAdjust(cameras,points,options)
-        self.puntos3dTotal=newpts.B
-        newcams.toTxt('nuevascamaraspro')
+# SBA IMPORTANTE LOURAKIS-------------------------------------------------------------------
+        # np.savetxt('camarasMegaTotales',self.camera_params[:,:],"%4.5f")
+        # print self.camera_params[:,5:].shape
+        # # cameras= sba.Cameras.fromDylan(self.camera_params)
+        # cameras= sba.Cameras.fromTxt('camarasMegaTotales')
+        # # cameras.zeroLocalRotationEstimates()
+        # print "shapes Pont Params: "
+        # print self.pointParams.shape
+        # # np.random.shuffle(self.pointParams)
+        #
+        # np.savetxt("puntosTotales",self.pointParams,"%4.5f")
+        # points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
+        # options = sba.Options.fromInput(cameras,points)
+        # # options.motstruct = sba.OPTS_STRUCT
+        #
+        # # options.camera = sba.OPTS_CAMS_NODIST
+        # # options.nccalib=sba.OPTS_FIX2_INTR
+        # options.nccalib=sba.OPTS_FIX5_INTR
+        # # options.camera=sba.OPTS_NO_CAMS
+        # # options.rot0params = cameras.rot0params
+        # # print self.pointParams[:,:3]
+        #
+        # # self.orderParams(self.pointParams)
+        # newcams, newpts, info = sba.SparseBundleAdjust(cameras,points,options)
+        # self.puntos3dTotal=newpts.B
+        # newcams.toTxt('nuevascamaraspro')
 
 # SBA IMPORTANTE-------------------------------------------------------------------
 

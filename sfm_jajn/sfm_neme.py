@@ -33,7 +33,7 @@ class sfm_neme:
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
         self.puntos3dIndices=None
-        self.MIN_REPROJECTION_ERROR = 100 # IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
+        self.MIN_REPROJECTION_ERROR = 75 # IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
         self.n_cameras=0
         self.n_points=0
         self.camera_indices=None
@@ -257,6 +257,7 @@ class sfm_neme:
         # print p1_winner.shape
 #---------------------------TEMPORAL POR SI SE DESEA VER CON OPTICAL FLOW---------------------------------------
         puntos3d_filtrado,p1_winner_filtrado,p2_winner_filtrado = self.triangulateAndFind3dPoints(P1,P2,p1_winner,p2_winner,0,index_winner)
+        # puntos3d_filtrado=np.round(puntos3d_filtrado,3)
         # puntos3d = self.triangulateAndFind3dPoints(P1,P2,lpoints,rpoints) # COMENTAR ESTE Y ACTIVAR EL OTRO PARA QUITAR OPTICAL....
 # Hago set de los parámetros requeridos para la comparación a las imagenes iniciales:
 
@@ -364,6 +365,9 @@ class sfm_neme:
         print "shape p3dAsociadosalineados: " + str(np.asarray(p3dAsociadosAlineados,np.float32).shape)
         return np.asarray(p2dAsociadosAlineados,np.float32),np.asarray(p3dAsociadosAlineados,np.float32)
 
+    # def organizaParams(self): # Compara los puntos3dfiltrados actuales, con la imagen anterior o más anterior (diferente a la imgComparada).
+    # # Si hay puntos 3d en común organiza pointParams de tal manera que agrega los índices,columnas y puntos 2d que se parecen.
+
     def addView(self):
         print "------------------------------ARRANCA AÑADE VISTA: ----------------------------------------------------------"
         for imageIndex in range(len(self.arregloImagen)):
@@ -423,6 +427,8 @@ class sfm_neme:
                     print "PcamBest: "
                     print PcamBest
                     puntos3d_filtrados,bestInlierPoints1_filtrados,bestInlierPoints2_filtrados = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2,imageIndex,bestImgComparadaIndex)
+                    # puntos3d_filtrados=np.round(puntos3d_filtrados,3)
+
                     print "puntos3d_filtrados encontrados: " + str(len(puntos3d_filtrados))
                     print self.puntos3dTotal.shape
                     print puntos3d_filtrados.shape
@@ -432,6 +438,43 @@ class sfm_neme:
                     # print "chequeo dimensiones para concatenar  bestInlierPoints2_filtrados: " + str(bestInlierPoints2_filtrados.shape)
                     # print "shape p2dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p2dAsociados.shape)
                     # print "shape p3dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape)
+
+#-----------------------COMPARO Y ENCUENTRO P3D REPETIDOS PARA ADICIONAR EN pointParamsActual-----------------------------------------------------
+
+                    if ((self.arregloImagen[bestImgComparadaIndex-1].p3dAsociados is not None) and (bestImgComparadaIndex-1 >= 0) ):
+
+                        
+
+
+
+                    #
+                    #     p3dActual=np.round(puntos3d_filtrados,2)
+                    #     p3dComparado=np.round(self.arregloImagen[bestImgComparadaIndex-1].p3dAsociados,2)
+                    #     np.savetxt('p3dActual',p3dActual,"%2.3f")
+                    #     np.savetxt('p3dComparado',p3dComparado,"%2.3f")
+                    #     print "ESTOS SON LOS PUNTOS ACTUAL Y COMPARADO ANTERIOR QUE EXISTEN!!!!!"
+                    #     print "p3dActualShape: " + str(p3dActual.shape)
+                    #     print "p3dComparadoShape: " + str(p3dComparado.shape)
+                    #     cuenta=0
+                    #     for index1 in range(len(p3dActual)):
+                    #         for index2 in range(len(p3dComparado)):
+                    #             # and (p3dActual[index1,1] == p3dComparado[index2,1]) and (p3dActual[index1,2] == p3dComparado[index2,2])
+                    #             if ((p3dActual[index1,0] == p3dComparado[index2,1]) and index1 != index2):
+                    #                 print "-----------------------HAY PUNTO REPEDITO EEEEEE------------------------"
+                    #                 cuenta = cuenta +1
+                    #
+                    #     print "CUENTA :   " +str(cuenta)
+
+
+
+
+
+
+
+
+
+
+
 # ------------------------BUNDLE ADJUSTMENT CONFIG LOURAKIS----------------
 
                     totalFrames=np.zeros((len(puntos3d_filtrados),1))
@@ -478,6 +521,7 @@ class sfm_neme:
                     options.nccalib=sba.OPTS_FIX5_INTR
                     newcams, newpts, info = sba.SparseBundleAdjust(cameras,points,options)
                     self.puntos3dTotal=newpts.B
+                    self.puntos3dTotal[:,:3]=np.round(self.puntos3dTotal[:,:3],5)
                     newcams.toTxt('nuevascamaraspro')
                     print "necams: "
                     print newcams.camarray
@@ -676,33 +720,36 @@ class sfm_neme:
             A[2 * i + 1, n_cameras * 9 + point_indices * 3 + s] = 1
 
         return A
-    def orderParams(self,point_params):
-        contador=0
-        params=point_params*1000
-        params=params.astype(int)
-        indexes = np.zeros((1,2))
-        print "unique: " + str(len(np.unique(params[:,:3],axis=0)))
-        #
-        # for index1 in range(len(point_params)):
-        #     for index2 in range(len(point_params)):
-        #         contador=contador+1
-                # print "actual: "+ str(paramActual[:3])
-                # print "paramComparado: "+ str(paramComparado[:3])
-                # if (paramActual[:3] == paramComparado[:3]):
-                # if (np.array_equal(paramActual[:3] ,paramComparado[:3])):
-        #         arreglo=np.array([[index1,index2]])
-        #         # print arreglo.shape
-        #         indexes=np.concatenate((indexes,arreglo),axis=0)
-        #         if ((point_params[index1,0] == point_params[index2,0]) and (point_params[index1,1] == point_params[index2,1]) and (point_params[index1,2] == point_params[index2,2]) and index1 != index2):
-        #             contador = contador + 1
-        #             arreglo=np.array([[index1,index2]])
-        #             # print arreglo.shape
-        #             indexes=np.concatenate((indexes,arreglo),axis=0)
-        #
-        print "PUNTOS 3D REPETIDOS: " + str(contador)
-        # print "indexes: "
-        # np.savetxt("indexes",indexes,"%4.5f")
 
+    #
+    #
+    # def orderParams(self,point_params):
+    #     contador=0
+    #     params=point_params*1000
+    #     params=params.astype(int)
+    #     indexes = np.zeros((1,2))
+    #     print "unique: " + str(len(np.unique(params[:,:3],axis=0)))
+    #     #
+    #     for index1 in range(len(point_params)):
+    #         for index2 in range(len(point_params)):
+    #             contador=contador+1
+    #             print "actual: "+ str(paramActual[:3])
+    #             print "paramComparado: "+ str(paramComparado[:3])
+    #             if (paramActual[:3] == paramComparado[:3]):
+    #             if (np.array_equal(paramActual[:3] ,paramComparado[:3])):
+    #             arreglo=np.array([[index1,index2]])
+    #             # print arreglo.shape
+    #             indexes=np.concatenate((indexes,arreglo),axis=0)
+    #             if ((point_params[index1,0] == point_params[index2,0]) and (point_params[index1,1] == point_params[index2,1]) and (point_params[index1,2] == point_params[index2,2]) and index1 != index2):
+    #                 contador = contador + 1
+    #                 arreglo=np.array([[index1,index2]])
+    #                 # print arreglo.shape
+    #                 indexes=np.concatenate((indexes,arreglo),axis=0)
+    #
+    #     print "PUNTOS 3D REPETIDOS: " + str(contador)
+    #     # print "indexes: "
+    #     # np.savetxt("indexes",indexes,"%4.5f")
+    #
 
 
 

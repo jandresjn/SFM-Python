@@ -33,7 +33,7 @@ class sfm_neme:
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
         self.puntos3dIndices=None
-        self.MIN_REPROJECTION_ERROR = 75 # IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
+        self.MIN_REPROJECTION_ERROR = 10 # IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
         self.n_cameras=0
         self.n_points=0
         self.camera_indices=None
@@ -197,7 +197,7 @@ class sfm_neme:
         p1_winner = None
         p2_winner = None
         # for index in range(len(self.images_path)-1):# Range corresponde con cuántas imagenes comparar después de la imagen base.
-        for index in range(4): # COMPARA CON LAS PRIMERAS 6 IMÁGENES PARA HALLAR EL PRIMER PAR.
+        for index in range(3): # COMPARA CON LAS PRIMERAS 6 IMÁGENES PARA HALLAR EL PRIMER PAR.
             print "-------------------------INICIA-----------------------------------"
             img_actual=cv2.imread(self.images_path[index+1])
             img_actual=self.preProcessing(img_actual)
@@ -269,8 +269,8 @@ class sfm_neme:
         frame0.fill(0)
         frame_winner=np.zeros((len(puntos3d_filtrado),1))
         frame_winner.fill(index_winner)
-
-        self.pointParams=np.concatenate((puntos3d_filtrado,totalFrames,frame0,p1_winner_filtrado,frame_winner,p2_winner_filtrado),axis=1)
+        tercerPoint=np.zeros((len(puntos3d_filtrado),3))
+        self.pointParams=np.concatenate((puntos3d_filtrado,totalFrames,frame0,p1_winner_filtrado,frame_winner,p2_winner_filtrado,tercerPoint),axis=1)
         print "POIINTPARAMS SHAPE:"+ str(self.pointParams.shape)
         print self.pointParams[0]
         # CON DIST
@@ -356,14 +356,18 @@ class sfm_neme:
     def findP2dAsociadosAlineados(self,p2dAsociados,p3dAsociados,imgPoints1,imgPoints2):
         p2dAsociadosAlineados = []
         p3dAsociadosAlineados = []
+        IndexAlineados2d=[]
+        IndexAlineados3d=[]
         for index3d, point3d in enumerate(p3dAsociados):
             for index2d, point2d in enumerate(imgPoints1):
                 if(point2d[0] == p2dAsociados[index3d][0] and point2d[1] == p2dAsociados[index3d][1]):
                     p2dAsociadosAlineados.append(imgPoints2[index2d])
                     p3dAsociadosAlineados.append(p3dAsociados[index3d])
+                    IndexAlineados2d.append(index2d)
+                    IndexAlineados3d.append(index3d)
         print "shape p2dAsociadosalineados: " + str(np.asarray(p2dAsociadosAlineados,np.float32).shape)
         print "shape p3dAsociadosalineados: " + str(np.asarray(p3dAsociadosAlineados,np.float32).shape)
-        return np.asarray(p2dAsociadosAlineados,np.float32),np.asarray(p3dAsociadosAlineados,np.float32)
+        return np.asarray(p2dAsociadosAlineados,np.float32),np.asarray(p3dAsociadosAlineados,np.float32),np.asarray(IndexAlineados3d,np.int16),np.asarray(IndexAlineados2d,np.int16)
 
     # def organizaParams(self): # Compara los puntos3dfiltrados actuales, con la imagen anterior o más anterior (diferente a la imgComparada).
     # # Si hay puntos 3d en común organiza pointParams de tal manera que agrega los índices,columnas y puntos 2d que se parecen.
@@ -375,6 +379,7 @@ class sfm_neme:
             imgActualPos=imageIndex+1
             contador=1
             imagenActual = cv2.imread(self.images_path[imageIndex])
+            imagenComparadaTercera=None
             bestInlierPoints1=None
             bestInlierPoints2=None
             bestInlierRatio = 0.0
@@ -412,7 +417,7 @@ class sfm_neme:
                     print "INICIA SOLVEPNPRANSAC CON LA IMAGEN GANADORA:"
                     print "se va a ransaquear con la mejor imagen : " + str(bestImgComparadaIndex+1)
                     # Uso función para asociar los puntos 2d que corresponden con la nube de puntos de la img comparada...
-                    p2dAsociadosAlineados,p3dAsociadosAlineados=  self.findP2dAsociadosAlineados(self.arregloImagen[bestImgComparadaIndex].p2dAsociados,self.arregloImagen[bestImgComparadaIndex].p3dAsociados,bestInlierPoints2,bestInlierPoints1)
+                    p2dAsociadosAlineados,p3dAsociadosAlineados,indexComparada,indexActual=  self.findP2dAsociadosAlineados(self.arregloImagen[bestImgComparadaIndex].p2dAsociados,self.arregloImagen[bestImgComparadaIndex].p3dAsociados,bestInlierPoints2,bestInlierPoints1)
                     mtx=self.createMtx(self.camera_params[imageIndex,0],self.camera_params[imageIndex,1],self.camera_params[imageIndex,2])
                     # dist=self.camera_params[imageIndex,5:10]
                     _,rvecs, tvecs,inliers = cv2.solvePnPRansac(p3dAsociadosAlineados,p2dAsociadosAlineados, mtx,self.dist,flags=cv2.SOLVEPNP_ITERATIVE)
@@ -440,11 +445,17 @@ class sfm_neme:
                     # print "shape p3dAsociado Actualizado: "+ str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape)
 
 #-----------------------COMPARO Y ENCUENTRO P3D REPETIDOS PARA ADICIONAR EN pointParamsActual-----------------------------------------------------
+                    hayTercera=False
+                    if ((self.arregloImagen[bestImgComparadaIndex-1].p3dAsociados is not None) and (bestImgComparadaIndex-1 >= 0)):
 
-                    if ((self.arregloImagen[bestImgComparadaIndex-1].p3dAsociados is not None) and (bestImgComparadaIndex-1 >= 0) ):
-
-                        
-
+                        imagenComparadaTercera=cv2.imread(self.images_path[bestImgComparadaIndex-1])
+                        p1_filtrado_tercera, p2_filtrado_tercera,matches_subset_tercera,matches_count_tercera=self.featureMatching(imagenActual,imagenComparadaTercera)
+                        p2dAsociadosAlineados_tercera,p3dAsociadosAlineados_tercera,index3d,index2d=  self.findP2dAsociadosAlineados(bestInlierPoints1_filtrados,puntos3d_filtrados,p1_filtrado_tercera,p2_filtrado_tercera)
+                        index3d=np.expand_dims(index3d,axis=1)
+                        index2d=np.expand_dims(index2d,axis=1)
+                        print "VAMOS POR LA TERCERA!"
+                        print "TERCERA PUNTOS 3D ASOCIADOS: " +str(p2dAsociadosAlineados_tercera.shape)
+                        hayTercera=True
 
 
                     #
@@ -483,8 +494,23 @@ class sfm_neme:
                     frameActual.fill(imageIndex)
                     frame_winner=np.zeros((len(puntos3d_filtrados),1))
                     frame_winner.fill(bestImgComparadaIndex)
+                    tercerPoint=np.zeros((len(puntos3d_filtrados),3))
+                    print "SHAPES IMPORTANTES"
+                    # print tercerPoint.shape
+                    # print bestInlierPoints2_filtrados.shape
 
-                    pointParamsActual=np.concatenate((puntos3d_filtrados,totalFrames,frameActual,bestInlierPoints1_filtrados,frame_winner,bestInlierPoints2_filtrados),axis=1)
+                    pointParamsActual=np.concatenate((puntos3d_filtrados,totalFrames,frameActual,bestInlierPoints1_filtrados,frame_winner,bestInlierPoints2_filtrados,tercerPoint),axis=1)
+                    print pointParamsActual.shape
+                    # print self.pointParams.shape
+
+                    if (hayTercera == True):
+                        print index3d.shape
+                        for index3d_idx, index3d_pos in enumerate(index3d):
+                            pointParamsActual[index3d_pos,3]=3
+                            pointParamsActual[index3d_pos,10]=bestImgComparadaIndex-1
+                            pointParamsActual[index3d_pos,11]=p2dAsociadosAlineados_tercera[(index2d[index3d_idx]),0]
+                            pointParamsActual[index3d_pos,12]=p2dAsociadosAlineados_tercera[(index2d[index3d_idx]),1]
+                        print "Modifiqué por tercera wii.--------------------"
 
                     self.pointParams=np.concatenate((self.pointParams,pointParamsActual))
                     self.camera_params[imageIndex,(14-5):]=PcamBest[:,3]
@@ -509,39 +535,40 @@ class sfm_neme:
 #SBA MODIFICA INICIA-------------------------------------------------------------------------------
 
                     #
-                    print 'image index: ' + str(imageIndex)
-                    if (imageIndex <= self.index_winner_base ):
-                        np.savetxt('camarasMegaTotales',self.camera_params[:self.index_winner_base+1,:],"%4.5f")
-                    else: np.savetxt('camarasMegaTotales',self.camera_params[:imageIndex+1,:],"%4.5f")
+                    if (imageIndex > 1):
+                        print 'image index: ' + str(imageIndex)
+                        if (imageIndex <= self.index_winner_base ):
+                            np.savetxt('camarasMegaTotales',self.camera_params[:self.index_winner_base+1,:],"%4.5f")
+                        else: np.savetxt('camarasMegaTotales',self.camera_params[:imageIndex+1,:],"%4.5f")
 
-                    cameras= sba.Cameras.fromTxt('camarasMegaTotales')
-                    np.savetxt("puntosTotales",self.pointParams,"%4.5f")
-                    points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
-                    options = sba.Options.fromInput(cameras,points)
-                    options.nccalib=sba.OPTS_FIX5_INTR
-                    newcams, newpts, info = sba.SparseBundleAdjust(cameras,points,options)
-                    self.puntos3dTotal=newpts.B
-                    self.puntos3dTotal[:,:3]=np.round(self.puntos3dTotal[:,:3],5)
-                    newcams.toTxt('nuevascamaraspro')
-                    print "necams: "
-                    print newcams.camarray
-                    # self.camera_params=newcams.toDylan()
-                    nuevas_camera_params=np.genfromtxt('nuevascamaraspro')
-                    self.camera_params[:len(nuevas_camera_params),:] = nuevas_camera_params
+                        cameras= sba.Cameras.fromTxt('camarasMegaTotales')
+                        np.savetxt("puntosTotales",self.pointParams,"%4.5f")
+                        points = sba.Points.fromTxt('puntosTotales',cameras.ncameras)
+                        options = sba.Options.fromInput(cameras,points)
+                        options.nccalib=sba.OPTS_FIX5_INTR
+                        newcams, newpts, info = sba.SparseBundleAdjust(cameras,points,options)
+                        self.puntos3dTotal=newpts.B
+                        self.puntos3dTotal[:,:3]=np.round(self.puntos3dTotal[:,:3],5)
+                        newcams.toTxt('nuevascamaraspro')
+                        print "necams: "
+                        print newcams.camarray
+                        # self.camera_params=newcams.toDylan()
+                        nuevas_camera_params=np.genfromtxt('nuevascamaraspro')
+                        self.camera_params[:len(nuevas_camera_params),:] = nuevas_camera_params
 
-                    PcamBest[:,3]=self.camera_params[imageIndex,(14-5):]
+                        PcamBest[:,3]=self.camera_params[imageIndex,(14-5):]
 
-                    P1QuatVec=self.camera_params[imageIndex,(10-5):(14-5)]
-                    print P1QuatVec
-                    P1Quaternion=Quaternion(array=P1QuatVec)
-                    # P1Quaternion=sba.quaternions.quatFromArray(P1QuatVec)
-                    # PcamBest[:,:3]=P1Quaternion.asRotationMatrix()
-                    PcamBest[:,:3]=P1Quaternion.rotation_matrix
-                    print PcamBest[:,:3]
+                        P1QuatVec=self.camera_params[imageIndex,(10-5):(14-5)]
+                        print P1QuatVec
+                        P1Quaternion=Quaternion(array=P1QuatVec)
+                        # P1Quaternion=sba.quaternions.quatFromArray(P1QuatVec)
+                        # PcamBest[:,:3]=P1Quaternion.asRotationMatrix()
+                        PcamBest[:,:3]=P1Quaternion.rotation_matrix
+                        print PcamBest[:,:3]
 
-                    puntos3d_filtrados=self.puntos3dTotal[-len(puntos3d_filtrados):,:]
+                        puntos3d_filtrados=self.puntos3dTotal[-len(puntos3d_filtrados):,:]
 
-                    self.pointParams[:,:3]=self.puntos3dTotal
+                        self.pointParams[:,:3]=self.puntos3dTotal
 
 
 
@@ -594,6 +621,9 @@ class sfm_neme:
                     # Configuración para Bundle Adjustment...
                     # camera_indices1=np.empty(len(puntos3d_filtrados))
                     # camera_indices1.fill(bestImgComparadaIndex)
+
+
+
                     # camera_indices2=np.empty(len(puntos3d_filtrados))
                     # camera_indices2.fill(imageIndex)
                     # self.camera_indices=np.concatenate([self.camera_indices,camera_indices1,camera_indices2])

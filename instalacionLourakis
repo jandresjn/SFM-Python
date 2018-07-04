@@ -1,0 +1,20 @@
+---------------GUÍA DE INSTALACIÓN DE SBA LOURAKIS--------------------------------------
+
+LIBRERÍAS A INSTALAR APT - GET:
+
+-libblas-dev
+-liblapack-dev
+-libf2c2
+-libf2c2-dev
+
+- Con esto instalado proceder a compilar levmar...
+
+Hacer make libsba.so y
+make libsbaprojs.so en sus respectivas carpetas y sudo make install con los archivos actualizados y guardados para que genere los enlaces
+y se encuentre listo para usar el sudo python install.
+
+Instalar con pip las librerías que faltan como pyquaternion.
+
+Se tiene en cuenta que el opencv está instalado con el ROS...
+
+./pmvs2 /home/jandresjn/Documents/RESCATE\ TESIS\ Y\ PYTHON\ PROJECT/TESIS/SFM-Python/sfm_jajn/outPMVS/ options.txt

@@ -31,9 +31,9 @@ class pointCloud2Pmvs:
         i=0
         for img in self.ImagesPoses:
             P=np.zeros((3,4))
-            P=self.cameraPoses[i]
-            P = np.array(self.cameraPoses[i],np.float32)
-            # P = np.array(self.ImagesPoses[i].Pcam,np.float32)
+            # P=self.cameraPoses[i]
+            # P = np.array(self.cameraPoses[i],np.float32)
+            P = np.array(self.ImagesPoses[i].Pcam,np.float32)
             P=np.matmul(K_mat,P)
 
 

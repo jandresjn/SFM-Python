@@ -18,14 +18,16 @@ objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
-images = glob.glob('*.jpg')
+images = glob.glob('./calibraTablet/*.jpg')
 i=1
 for fname in images:
     img = cv2.imread(fname)
-    wPercent = (500/float(img.size[0]))  # Saca el porcentaje que representa el ancho fijado con respecto a la imagen actual
+    # cv2.imshow('img',img)
+    # cv2.waitKey(500)
+    # wPercent = (1000/float(img.size[0]))  # Saca el porcentaje que representa el ancho fijado con respecto a la imagen actual
     # ejemplo, para una imagen de width de 800, queda 500/800, osea que corresponde 500 al 62.5 % de 800....
-    height = int((float(img.size[1]) * float(wPercent)))
-    img= cv2.resize((500, height), Image.BILINEAR)
+    # height = int((float(img.size[1]) * float(wPercent)))
+    # img= cv2.resize((1000, height), Image.BILINEAR)
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
     # Find the chess board corners
@@ -49,17 +51,22 @@ ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.sh
 print str(mtx)
 np.savez('camera_calibration.npz', mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
 
-print "por aca ando"
-img = cv2.imread('2.jpg')
-h,  w = img.shape[:2]
-newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
-dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
-print "ya casi"
-x,y,w,h = roi
-dst = dst[y:y+h, x:x+w]
-cv2.imwrite('calibresult1.png',dst)
 
-img = cv2.imread('sincorregir.jpg')
+
+
+# print "por aca ando"
+# img = cv2.imread('2.jpg')
+# h,  w = img.shape[:2]
+# newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+# dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
+# print "ya casi"
+# x,y,w,h = roi
+# dst = dst[y:y+h, x:x+w]
+# cv2.imwrite('calibresult1.png',dst)
+
+img = cv2.imread('./calibraTablet/foto.jpg')
+cv2.imshow('img',img)
+cv2.waitKey(5000)
 h,  w = img.shape[:2]
 newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
 dst = cv2.undistort(img, mtx, dist, None, newcameramtx)

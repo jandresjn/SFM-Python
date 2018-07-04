@@ -14,3 +14,9 @@ class Imagen:
         self.features=None
         self.descriptors=None
         self.imagColor=imagColor
+
+class Punto3d:
+    'Contiene la información que relacióna individualmente un punto 3d'
+
+    def __init__(self):
+        pass

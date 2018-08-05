@@ -19,14 +19,14 @@ class sfm_neme:
         self.detector = cv2.xfeatures2d.SIFT_create() # Lo defino general, por que lo utilizaré en 2 funciones.
         self.matcher=cv2.BFMatcher(crossCheck=False)
         self.matches= None
-        self.ratio = 0.80 # RATIO DE FILTRO DE INLIERS
+        self.ratio = 0.75 # RATIO DE FILTRO DE INLIERS
         self.images_path= []
         self.index_winner_base=None
         self.arregloImagen=[]
         self.puntos3dTotal=np.empty((1,3))
         self.puntos3dIndices=None
-        self.MIN_REPROJECTION_ERROR =0.15
-        self.MERGE_CLOUD_POINT_MIN_MATCH_DISTANCE=0.05;# IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
+        self.MIN_REPROJECTION_ERROR = 1
+        self.MERGE_CLOUD_POINT_MIN_MATCH_DISTANCE=0.01# IMPORTANTE. ERROR DE REPROJECCIÓN DE FILTRADO CUANDO TRIANGULA.
         self.n_cameras=0
         self.n_points=0
         self.pointParams=None
@@ -368,7 +368,8 @@ class sfm_neme:
             bestImgComparadaIndex=0
             paqueteApto=False
             contadorBuffer=10
-            while (contador <= contadorBuffer and imgActualPos > 1 and  imageIndex != self.index_winner_base ):
+            # and  imageIndex != self.index_winner_base
+            while (contador <= contadorBuffer and imgActualPos > 1 and  imageIndex != self.index_winner_base):
                 imgComparadaPos=imgActualPos-contador
                 if ( imgComparadaPos != 0 ) : # Compara hasta que haya 10 imagenes o no haya más.
                     print "imagenActual: " + str(imgActualPos) + " imagen comparada : "+ str(imgComparadaPos)
@@ -402,7 +403,7 @@ class sfm_neme:
                     p2dAsociadosAlineados,p3dAsociadosAlineados,indexComparada,indexActual=  self.findP2dAsociadosAlineados(self.arregloImagen[bestImgComparadaIndex].p2dAsociados,self.arregloImagen[bestImgComparadaIndex].p3dAsociados,bestInlierPoints2,bestInlierPoints1)
                     mtx=self.createMtx(self.camera_params[imageIndex,0],self.camera_params[imageIndex,1],self.camera_params[imageIndex,2])
                     # dist=self.camera_params[imageIndex,5:10]
-                    _,rvecs, tvecs,inliers = cv2.solvePnPRansac(p3dAsociadosAlineados,p2dAsociadosAlineados, mtx,self.dist,flags=cv2.SOLVEPNP_ITERATIVE)
+                    _,rvecs, tvecs,inliers = cv2.solvePnPRansac(p3dAsociadosAlineados,p2dAsociadosAlineados, mtx,self.dist)#flags=cv2.SOLVEPNP_ITERATIVE
                     R = cv2.Rodrigues(rvecs.T)
                     print "shape p3d ransaqueados: " +str(self.arregloImagen[bestImgComparadaIndex].p3dAsociados.shape)
                     print "shape p2d ransaqueados: " +str(np.squeeze(p2dAsociadosAlineados).shape)
@@ -413,7 +414,15 @@ class sfm_neme:
                     PcamBest=np.hstack((R[0],tvecs))
                     print "PcamBest: "
                     print PcamBest
+                    print "Img comparada pos - 2"
+                    print imgComparadaPos-2
                     puntos3d_filtrados,bestInlierPoints1_filtrados,bestInlierPoints2_filtrados = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2,imageIndex,bestImgComparadaIndex)
+
+                    # if imgComparadaPos-2 >0:
+                    #     p1_filtrado_anterior, p2_filtrado_anterior,matches_subset_anterior,matches_count_anterior=self.featureMatching(self.arregloImagen[imageIndex].features,self.arregloImagen[imageIndex].descriptors,self.arregloImagen[imgComparadaPos-2].features,self.arregloImagen[imgComparadaPos-2].descriptors)
+                    #     puntos3d_filtrados,bestInlierPoints1_filtrados,bestInlierPoints2_filtrados = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex-1].Pcam,p1_filtrado_anterior,p2_filtrado_anterior,imageIndex,bestImgComparadaIndex-1)
+                    # else:
+                    #     puntos3d_filtrados,bestInlierPoints1_filtrados,bestInlierPoints2_filtrados = self.triangulateAndFind3dPoints(PcamBest,self.arregloImagen[bestImgComparadaIndex].Pcam,bestInlierPoints1,bestInlierPoints2,imageIndex,bestImgComparadaIndex)
                     # puntos3d_filtrados=np.round(puntos3d_filtrados,3)
 
                     print "puntos3d_filtrados encontrados: " + str(len(puntos3d_filtrados))
@@ -433,6 +442,9 @@ class sfm_neme:
                     frameActual=np.zeros((len(puntos3d_filtrados),1))
                     frameActual.fill(imageIndex)
                     frame_winner=np.zeros((len(puntos3d_filtrados),1))
+                    # if imgComparadaPos-2 > 0:
+                    #     frame_winner.fill(bestImgComparadaIndex-1)
+                    # else:
                     frame_winner.fill(bestImgComparadaIndex)
 
                     pointParamsActual=np.concatenate((puntos3d_filtrados,totalFrames,frame_winner,bestInlierPoints2_filtrados,frameActual,bestInlierPoints1_filtrados),axis=1)
@@ -506,9 +518,13 @@ class sfm_neme:
 #SBA MODIFICA END-------------------------------------------------------------------------------
                     self.arregloImagen[imageIndex].Pcam=PcamBest
                     self.arregloImagen[imageIndex].p2dAsociados=bestInlierPoints1_filtrados
-                    self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2_filtrados))
                     self.arregloImagen[imageIndex].p3dAsociados=puntos3d_filtrados
-                    self.arregloImagen[bestImgComparadaIndex].p3dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p3dAsociados,puntos3d_filtrados))
+                    # if imgComparadaPos-2 >0:
+                    #     bestImgComparadaIndex-=1
+                    self.arregloImagen[bestImgComparadaIndex].p2dAsociados=bestInlierPoints2_filtrados
+                    self.arregloImagen[bestImgComparadaIndex].p3dAsociados=puntos3d_filtrados
+                    # self.arregloImagen[bestImgComparadaIndex].p2dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p2dAsociados,bestInlierPoints2_filtrados))
+                    # self.arregloImagen[bestImgComparadaIndex].p3dAsociados=np.concatenate((self.arregloImagen[bestImgComparadaIndex].p3dAsociados,puntos3d_filtrados))
 
 
 
@@ -564,7 +580,7 @@ class sfm_neme:
         punto3dMediana=np.median(self.puntos3dTotal,axis=0)
         print "mediana: " + str(punto3dMediana)
         self.addView() # AÑADO LAS VISTAS....
-        # self.bundleAdjustment()
+        self.bundleAdjustment()
 
 # SBA IMPORTANTE LOURAKIS-------------------------------------------------------------------
 
@@ -589,7 +605,7 @@ class sfm_neme:
         #     print "index path: " + str(index_path)
 
         #XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
+        #
         self.mCameraPose=[None] * len(self.images_path)
         rawC = np.genfromtxt('nuevascamaraspro')
         for idx in range(rawC.shape[0]):

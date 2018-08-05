@@ -18,3 +18,4 @@ Instalar con pip las librerías que faltan como pyquaternion.
 Se tiene en cuenta que el opencv está instalado con el ROS...
 
 ./pmvs2 /home/jandresjn/Documents/RESCATE\ TESIS\ Y\ PYTHON\ PROJECT/TESIS/SFM-Python/sfm_jajn/outPMVS/ options.txt
+./pmvs2 /home/jandresjn/Documents/RESCATE\ TESIS\ Y\ PYTHON\ PROJECT/TESIS/SFM-Python-Walter/outPMVS/ options.txt

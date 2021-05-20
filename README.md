@@ -1,5 +1,5 @@
 # SFM_PARROT_THESIS
-
+test
 Welcome to my sfm project.
 
 I made the repository public because im looking for people who can help me with to correct the bundle adjustment process.
@@ -33,7 +33,7 @@ The codes have good results with temple set and carzy horse set, but without usi
 -----------------------------------------------------------------------------------------------
 ## Requeriments
 LIBRARYS USED:
-OPENCV3.4 
+OPENCV3.4
 VTK PYTHON
 SBA LOURAKIS PYTHON:
 I modified one line of sba 1.6.8 python wich had a bug in a "dylan" function.
